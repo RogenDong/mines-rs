@@ -295,7 +295,7 @@ impl MineMap {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Position(pub u8, pub u8);
 impl Position {
     /// 获取周围3~8格
