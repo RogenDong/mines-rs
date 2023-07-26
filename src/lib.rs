@@ -62,7 +62,7 @@ impl Mark {
         self.0 |= M_OPENED
     }
     pub fn is_open(self) -> bool {
-        (self.0 & M_OPENED) > 0
+        self.0 >= M_OPENED
     }
 
     pub fn is_mine(self) -> bool {
