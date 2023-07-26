@@ -31,7 +31,7 @@ const M_OPENED: u8 = 0x80;
 /// |└ 是否标记(0/1)
 /// └ 是否打开(0/1)
 /// ```
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Eq)]
 pub struct Mark(pub u8);
 impl Mark {
     /// 根据选项构造一个标记
@@ -119,6 +119,11 @@ impl Mark {
     #[inline]
     pub fn get_warn(self) -> u8 {
         (self.0 | 0xf0) ^ 0xf0
+    }
+}
+impl PartialEq for Mark {
+    fn eq(&self, other: &Self) -> bool {
+        (self.0 | 0xf0) == (other.0 | 0xf0)
     }
 }
 
