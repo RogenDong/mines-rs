@@ -179,7 +179,11 @@ impl MineMap {
                     Mark(9)
                 } else {
                     let a = pos.get_around(limit);
-                    let a = a.iter().filter(|a| ls_pv_mine.contains(a)).count();
+                    let a = a
+                        .into_iter()
+                        .flatten()
+                        .filter(|a| ls_pv_mine.contains(a))
+                        .count();
                     Mark(a as u8)
                 }
             }
@@ -252,6 +256,7 @@ impl MineMap {
         };
         self.get_mut(p).set_mine();
         for ap in p.get_around(Position(self.width, self.height)) {
+            let Some(ap) = ap else {continue};
             self.get_mut(ap).bump_warn(true);
         }
         Ok(p)
@@ -273,6 +278,7 @@ impl MineMap {
             // count around mines
             let mut cam = 0;
             for ap in around {
+                let Some(ap) = ap else {continue};
                 let am = self.get_mut(ap);
                 if am.is_mine() {
                     cam += 1;
@@ -301,6 +307,7 @@ impl MineMap {
         // set mine
         self.get_mut(p2).set_mine();
         for ap in p2.get_around(limit) {
+            let Some(ap) = ap else {continue};
             let am = self.get_mut(ap);
             if am.is_mine() {
                 continue;
@@ -315,7 +322,7 @@ impl MineMap {
 pub struct Position(pub u8, pub u8);
 impl Position {
     /// 获取周围3~8格
-    pub fn get_around(self, Self(mx, my): Self) -> Vec<Self> {
+    pub fn get_around(self, Self(mx, my): Self) -> [Option<Self>; 8] {
         use std::ops::RangeInclusive;
         #[inline]
         fn limit(v: u8, max: u8) -> RangeInclusive<u8> {
@@ -329,13 +336,15 @@ impl Position {
             mi..=mx
         }
         let Self(x, y) = self;
-        let mut ls = Vec::with_capacity(8);
+        let mut ls = [None; 8];
+        let mut t = 0usize;
         for ty in limit(y, my) {
             for tx in limit(x, mx) {
+                t += 1;
                 if tx == x && ty == y {
                     continue;
                 }
-                ls.push(Self(tx, ty));
+                ls[t] = Some(Self(tx, ty));
             }
         }
         ls
