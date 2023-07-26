@@ -140,6 +140,10 @@ impl MineMap {
 
     /// 预览刷新的地雷
     fn preview_shuffle(&self) -> Vec<Position> {
+        let (w, h) = (self.width as usize, self.height as usize);
+        if self.count < 1 || w * h < self.count as usize {
+            return Vec::with_capacity(0);
+        }
         let mut mine_map = Vec::with_capacity(self.count as usize);
         let mut rng = rand::thread_rng();
         let mut t = 0;
@@ -157,8 +161,11 @@ impl MineMap {
 
     // 刷新地雷
     pub fn shuffle(&mut self) {
-        let limit = Position(self.width, self.height);
         let ls_pv_mine = self.preview_shuffle();
+        if ls_pv_mine.is_empty() {
+            return;
+        }
+        let limit = Position(self.width, self.height);
         let mut map = [[Mark(0); 256]; 256];
         for y in 0..self.height {
             for x in 0..self.width {
@@ -246,6 +253,7 @@ impl MineMap {
     }
 
     // 在指定队列中抽一个点
+    // TODO: 完善基础 API 后添加【猜测】相关 API
     // fn try_random_in(&mut self, ls: Vec<Position>) -> Result<Position, MineError> {
     //     todo!()
     // }
