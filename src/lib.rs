@@ -321,31 +321,59 @@ impl MineMap {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Position(pub u8, pub u8);
 impl Position {
-    /// 获取周围3~8格
-    pub fn get_around(self, Self(mx, my): Self) -> [Option<Self>; 8] {
-        use std::ops::RangeInclusive;
-        #[inline]
-        fn limit(v: u8, max: u8) -> RangeInclusive<u8> {
-            let mut mx = v + 1;
-            let mut mi = 0;
-            if v > 0 {
-                mi = v - 1;
-            } else if v == (max - 1) {
-                mx = v;
-            }
-            mi..=mx
+    #[inline]
+    fn limit(v: u8, max: u8) -> std::ops::RangeInclusive<u8> {
+        let mut mx = v + 1;
+        let mut mi = 0;
+        if v > 0 {
+            mi = v - 1;
+        } else if v == (max - 1) {
+            mx = v;
         }
+        mi..=mx
+    }
+    /// 获取周围一周的坐标（距离1单位）
+    /// ## Arguments
+    /// x 和 y 的最大可用值
+    /// ## Returns
+    /// 最少3个，最多8个有效坐标
+    pub fn get_around(self, Self(mx, my): Self) -> [Option<Self>; 8] {
         let Self(x, y) = self;
         let mut ls = [None; 8];
         let mut t = 0usize;
-        for ty in limit(y, my) {
-            for tx in limit(x, mx) {
+        for ty in Self::limit(y, my) {
+            for tx in Self::limit(x, mx) {
                 t += 1;
                 if tx == x && ty == y {
                     continue;
                 }
                 ls[t] = Some(Self(tx, ty));
             }
+        }
+        ls
+    }
+
+    /// 获取垂直和水平方向两端各延申1单位处的坐标（4个）
+    /// ## Arguments
+    /// x 和 y 的最大可用值
+    /// ## Returns
+    /// 最少2个，最多4个有效坐标
+    pub fn get_nearby(self, Self(mx, my): Self) -> [Option<Self>; 4] {
+        let Self(x, y) = self;
+        let mut ls = [None; 4];
+        let ly = Self::limit(y, my);
+        if ly.contains(&(y - 1)) {
+            ls[0] = Some(Self(x, y - 1));
+        }
+        if ly.contains(&(y + 1)) {
+            ls[1] = Some(Self(x, y + 1));
+        }
+        let lx = Self::limit(x, mx);
+        if lx.contains(&(x - 1)) {
+            ls[2] = Some(Self(x - 1, y));
+        }
+        if lx.contains(&(x + 1)) {
+            ls[3] = Some(Self(x + 1, y));
         }
         ls
     }
