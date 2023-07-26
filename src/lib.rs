@@ -86,6 +86,9 @@ impl Mark {
         self.0 |= M_GUESS_SUSP
     }
 
+    pub fn is_guess(self) -> bool {
+        (self.0 & M_GUESS_MINE) > 0
+    }
     pub fn guess_mine(self) -> bool {
         (self.0 & M_GUESS_MINE) == M_GUESS_MINE
     }
@@ -211,7 +214,7 @@ impl MineMap {
         for y in 0..self.height {
             for x in 0..self.width {
                 let m = self.get(x, y);
-                if m.guess_safe() || m.guess_suspicious() {
+                if m.is_guess() {
                     ls.push(Position(x, y));
                 }
             }
