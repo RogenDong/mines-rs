@@ -65,11 +65,11 @@ impl Mark {
         self.0 >= M_OPENED
     }
 
+    pub fn set_mine(&mut self) {
+        self.0 = ((self.0 | 0xf) ^ 0xf) | 9
+    }
     pub fn is_mine(self) -> bool {
         ((self.0 | 0xf0) ^ 0xf0) > 8
-    }
-    pub fn guess_mine(self) -> bool {
-        (self.0 & M_GUESS_MINE) > 0
     }
 
     pub fn set_safe(&mut self) -> Result<(), MineError> {
@@ -82,20 +82,20 @@ impl Mark {
         self.0 |= M_GUESS_SAFE;
         Ok(())
     }
-    pub fn is_safe(self) -> bool {
-        (self.0 & M_GUESS_SAFE) > 0
-    }
-
     pub fn set_suspicious(&mut self) {
         self.0 |= M_GUESS_SUSP
     }
-    pub fn is_suspicious(self) -> bool {
-        (self.0 & M_GUESS_SUSP) > 0
+
+    pub fn guess_mine(self) -> bool {
+        (self.0 & M_GUESS_MINE) == M_GUESS_MINE
+    }
+    pub fn guess_safe(self) -> bool {
+        (self.0 & M_GUESS_MINE) == M_GUESS_SAFE
+    }
+    pub fn guess_suspicious(self) -> bool {
+        (self.0 & M_GUESS_MINE) == M_GUESS_SUSP
     }
 
-    pub fn set_mine(&mut self) {
-        self.0 = ((self.0 | 0xf) ^ 0xf) | 9
-    }
     pub fn set_warn(&mut self, warn: u8) {
         let mut w = warn;
         if w > 15 {
@@ -211,7 +211,7 @@ impl MineMap {
         for y in 0..self.height {
             for x in 0..self.width {
                 let m = self.get(x, y);
-                if m.is_safe() || m.is_suspicious() {
+                if m.guess_safe() || m.guess_suspicious() {
                     ls.push(Position(x, y));
                 }
             }
