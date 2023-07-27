@@ -9,7 +9,7 @@ impl Position {
         let mut mi = 0;
         if v > 0 {
             mi = v - 1;
-        } else if v == (max - 1) {
+        } else if v >= (max - 1) {
             mx = v;
         }
         mi..=mx
@@ -22,6 +22,9 @@ impl Position {
     pub fn get_around(self, Self(mx, my): Self) -> [Option<Position>; 8] {
         let Self(x, y) = self;
         let mut ls = [None; 8];
+        if x >= mx || y >= my {
+            return ls;
+        }
         let mut t = 0;
         for ty in Self::limit(y, my) {
             for tx in Self::limit(x, mx) {
