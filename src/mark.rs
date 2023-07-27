@@ -97,7 +97,12 @@ impl Mark {
         }
         self.0 = ((self.0 | 0xf) ^ 0xf) | w
     }
-    pub fn bump_warn(&mut self, add: bool) {
+    /// 增减 warn 值
+    /// ### Arguments
+    /// `add` true-增加；false-减少
+    /// ### Return
+    /// 增减后的值
+    pub fn bump_warn(&mut self, add: bool) -> u8 {
         let w = self.get_warn();
         if add {
             if w < 15 {
@@ -106,6 +111,7 @@ impl Mark {
         } else if w > 0 {
             self.0 -= 1;
         }
+        self.get_warn()
     }
     #[inline]
     pub fn get_warn(self) -> u8 {
