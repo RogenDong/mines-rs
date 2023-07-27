@@ -8,15 +8,24 @@ use mark::Mark;
 use position::Position;
 use rand::Rng;
 
+#[derive(Clone, Copy)]
+enum BitSt {
+    Sth,
+    Empty,
+    Tagged,
+}
+
 pub struct MineMap {
     pub count: u8,
     pub width: u8,
     pub height: u8,
     map: Box<[[Mark; 256]; 256]>,
+    bitmap: Box<[[BitSt; 256]; 256]>,
 }
 impl MineMap {
     fn clean_up(&mut self) {
         self.map = Box::new([[Mark(0); 256]; 256]);
+        self.bitmap = Box::new([[BitSt::Empty; 256]; 256]);
     }
 
     pub fn from(count: u8, width: u8, height: u8) -> Self {
@@ -25,7 +34,29 @@ impl MineMap {
             width,
             height,
             map: Box::new([[Mark(0); 256]; 256]),
+            bitmap: Box::new([[BitSt::Empty; 256]; 256]),
         }
+    }
+
+    pub fn get(&self, x: u8, y: u8) -> &Mark {
+        &self.map[y as usize][x as usize]
+    }
+
+    pub fn get_by_pos(&self, Position(x, y): Position) -> &Mark {
+        self.get(x, y)
+    }
+
+    // fn get_mut(&mut self, x: u8, y: u8) -> &mut Mark {
+    //     &mut self.map[y as usize][x as usize]
+    // }
+
+    fn get_mut_by_pos(&mut self, Position(x, y): Position) -> &mut Mark {
+        &mut self.map[y as usize][x as usize]
+    }
+
+    #[inline]
+    fn set_bitmap(&mut self, Position(x, y): Position, st: BitSt) {
+        self.bitmap[y as usize][x as usize] = st;
     }
 
     /// 预览刷新的地雷
@@ -59,9 +90,11 @@ impl MineMap {
         let limit = Position(self.width, self.height);
         for p in ls_pv_mine {
             self.get_mut_by_pos(p).set_mine();
+            self.set_bitmap(p, BitSt::Sth);
             for a in p.get_around(limit) {
-                let Some(ap) = a else {break};
-                self.get_mut_by_pos(ap).bump_warn(true);
+                let Some(a) = a else {break};
+                self.get_mut_by_pos(a).bump_warn(true);
+                self.set_bitmap(p, BitSt::Sth);
             } // for around mine
         } // for mines
     }
@@ -85,22 +118,6 @@ impl MineMap {
             buf.push('\n');
         }
         buf
-    }
-
-    pub fn get(&self, x: u8, y: u8) -> &Mark {
-        &self.map[y as usize][x as usize]
-    }
-
-    pub fn get_by_pos(&self, Position(x, y): Position) -> &Mark {
-        self.get(x, y)
-    }
-
-    // fn get_mut(&mut self, x: u8, y: u8) -> &mut Mark {
-    //     &mut self.map[y as usize][x as usize]
-    // }
-
-    fn get_mut_by_pos(&mut self, Position(x, y): Position) -> &mut Mark {
-        &mut self.map[y as usize][x as usize]
     }
 
     /// 获取所有标记了猜测的位置
@@ -128,9 +145,11 @@ impl MineMap {
             let m = self.get_mut_by_pos(p);
             if !m.is_mine() {
                 m.bump_warn(true);
+                self.set_bitmap(p, BitSt::Sth);
             }
         }
         self.get_mut_by_pos(p).set_mine();
+        self.set_bitmap(p, BitSt::Sth);
     }
 
     /// 全图随机抽一个点，设置地雷
@@ -176,7 +195,10 @@ impl MineMap {
                 ls_around.push(ap);
             }
             // update around warn
-            am.bump_warn(false);
+            let bw = am.bump_warn(false);
+            if bw < 1 {
+                self.set_bitmap(p, BitSt::Empty);
+            }
         }
         // remove mine
         self.get_mut_by_pos(p).set_warn(w);
