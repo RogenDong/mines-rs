@@ -51,6 +51,7 @@ impl MineMap {
         if ls_pv_mine.is_empty() {
             return;
         }
+        self.map = Box::new([[Mark(0); 256]; 256]);
         let limit = Position(self.width, self.height);
         for p in ls_pv_mine {
             self.get_mut_by_pos(p).set_mine();
