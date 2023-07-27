@@ -9,7 +9,7 @@ use position::Position;
 use rand::Rng;
 
 #[derive(Clone, Copy)]
-enum BitSt {
+enum SlotState {
     Sth,
     Empty,
     Tagged,
@@ -20,12 +20,12 @@ pub struct MineMap {
     pub width: u8,
     pub height: u8,
     map: Box<[[Mark; 256]; 256]>,
-    bitmap: Box<[[BitSt; 256]; 256]>,
+    state_map: Box<[[SlotState; 256]; 256]>,
 }
 impl MineMap {
     fn clean_up(&mut self) {
         self.map = Box::new([[Mark(0); 256]; 256]);
-        self.bitmap = Box::new([[BitSt::Empty; 256]; 256]);
+        self.state_map = Box::new([[SlotState::Empty; 256]; 256]);
     }
 
     pub fn from(count: u8, width: u8, height: u8) -> Self {
@@ -34,7 +34,7 @@ impl MineMap {
             width,
             height,
             map: Box::new([[Mark(0); 256]; 256]),
-            bitmap: Box::new([[BitSt::Empty; 256]; 256]),
+            state_map: Box::new([[SlotState::Empty; 256]; 256]),
         }
     }
 
@@ -49,14 +49,19 @@ impl MineMap {
     // fn get_mut(&mut self, x: u8, y: u8) -> &mut Mark {
     //     &mut self.map[y as usize][x as usize]
     // }
-
+    #[inline]
     fn get_mut_by_pos(&mut self, Position(x, y): Position) -> &mut Mark {
         &mut self.map[y as usize][x as usize]
     }
 
     #[inline]
-    fn set_bitmap(&mut self, Position(x, y): Position, st: BitSt) {
-        self.bitmap[y as usize][x as usize] = st;
+    fn set_slot_state(&mut self, Position(x, y): Position, st: SlotState) {
+        self.state_map[y as usize][x as usize] = st;
+    }
+
+    #[inline]
+    fn get_slot_state(&self, Position(x, y): Position) -> SlotState {
+        self.state_map[y as usize][x as usize]
     }
 
     /// 预览刷新的地雷
@@ -90,11 +95,11 @@ impl MineMap {
         let limit = Position(self.width, self.height);
         for p in ls_pv_mine {
             self.get_mut_by_pos(p).set_mine();
-            self.set_bitmap(p, BitSt::Sth);
+            self.set_slot_state(p, SlotState::Sth);
             for a in p.get_around(limit) {
                 let Some(a) = a else {break};
                 self.get_mut_by_pos(a).bump_warn(true);
-                self.set_bitmap(p, BitSt::Sth);
+                self.set_slot_state(p, SlotState::Sth);
             } // for around mine
         } // for mines
     }
@@ -145,11 +150,11 @@ impl MineMap {
             let m = self.get_mut_by_pos(p);
             if !m.is_mine() {
                 m.bump_warn(true);
-                self.set_bitmap(p, BitSt::Sth);
+                self.set_slot_state(p, SlotState::Sth);
             }
         }
         self.get_mut_by_pos(p).set_mine();
-        self.set_bitmap(p, BitSt::Sth);
+        self.set_slot_state(p, SlotState::Sth);
     }
 
     /// 全图随机抽一个点，设置地雷
@@ -197,7 +202,7 @@ impl MineMap {
             // update around warn
             let bw = am.bump_warn(false);
             if bw < 1 {
-                self.set_bitmap(p, BitSt::Empty);
+                self.set_slot_state(p, SlotState::Empty);
             }
         }
         // remove mine
