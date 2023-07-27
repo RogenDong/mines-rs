@@ -72,15 +72,10 @@ impl Mark {
         ((self.0 | 0xf0) ^ 0xf0) > 8
     }
 
-    pub fn set_safe(&mut self) -> Result<(), MineError> {
+    pub fn set_safe(&mut self) {
         if !self.is_mine() {
-            return Err(MineError {
-                kind: ErrorKind::GuessError,
-                message: "当前标记存在地雷，不可设为【安全】".to_string(),
-            });
+            self.0 |= M_GUESS_SAFE;
         }
-        self.0 |= M_GUESS_SAFE;
-        Ok(())
     }
     pub fn set_suspicious(&mut self) {
         self.0 |= M_GUESS_SUSP
@@ -171,24 +166,13 @@ impl MineMap {
             return;
         }
         let limit = Position(self.width, self.height);
-        let mut map = [[Mark(0); 256]; 256];
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let pos = Position(x, y);
-                map[y as usize][x as usize] = if ls_pv_mine.contains(&pos) {
-                    Mark(9)
-                } else {
-                    let a = pos.get_around(limit);
-                    let a = a
-                        .into_iter()
-                        .flatten()
-                        .filter(|a| ls_pv_mine.contains(a))
-                        .count();
-                    Mark(a as u8)
-                }
-            }
-        } // for line
-        self.map = Box::new(map);
+        for p in ls_pv_mine {
+            self.get_mut_by_pos(p).set_mine();
+            for a in p.get_around(limit) {
+                let Some(ap) = a else {break};
+                self.get_mut_by_pos(ap).bump_warn(true);
+            } // for around mine
+        } // for mines
     }
 
     pub fn format_str(&self) -> String {
@@ -220,7 +204,11 @@ impl MineMap {
         self.get(x, y)
     }
 
-    fn get_mut(&mut self, Position(x, y): Position) -> &mut Mark {
+    // fn get_mut(&mut self, x: u8, y: u8) -> &mut Mark {
+    //     &mut self.map[y as usize][x as usize]
+    // }
+
+    fn get_mut_by_pos(&mut self, Position(x, y): Position) -> &mut Mark {
         &mut self.map[y as usize][x as usize]
     }
 
@@ -239,12 +227,23 @@ impl MineMap {
     }
 
     /// 更新所有猜测
-    pub fn update_guess(&mut self) -> Result<(), MineError> {
+    pub fn update_guess(&mut self) {
         todo!()
     }
 
+    fn set_mine(&mut self, p: Position) {
+        for a in p.get_around(Position(self.width, self.height)) {
+            let Some(p) = a else {break};
+            let m = self.get_mut_by_pos(p);
+            if !m.is_mine() {
+                m.bump_warn(true);
+            }
+        }
+        self.get_mut_by_pos(p).set_mine();
+    }
+
     /// 全图随机抽一个点，设置地雷
-    fn try_random_one(&mut self) -> Result<Position, MineError> {
+    fn try_random_one(&mut self) -> Position {
         let mut rng = rand::thread_rng();
         let p = loop {
             let y = rng.gen_range(0..self.height);
@@ -254,67 +253,53 @@ impl MineMap {
                 break Position(x, y);
             }
         };
-        self.get_mut(p).set_mine();
-        for ap in p.get_around(Position(self.width, self.height)) {
-            let Some(ap) = ap else {continue};
-            self.get_mut(ap).bump_warn(true);
-        }
-        Ok(p)
+        self.set_mine(p);
+        p
     }
 
     // 在指定队列中抽一个点
     // TODO: 完善基础 API 后添加【猜测】相关 API
-    // fn try_random_in(&mut self, ls: Vec<Position>) -> Result<Position, MineError> {
+    // fn try_random_in(&mut self, ls: Vec<Position>) {
     //     todo!()
     // }
 
     /// 移动地雷（随机）
-    pub fn move_mine_randomly(&mut self, pos: Position) -> Result<Position, MineError> {
-        let mut ls_candidate = Vec::with_capacity(8);
-        let limit = Position(self.width, self.height);
-        // remove mine
-        '_p1: {
-            let around = pos.get_around(limit);
-            // count around mines
-            let mut cam = 0;
-            for ap in around {
-                let Some(ap) = ap else {continue};
-                let am = self.get_mut(ap);
-                if am.is_mine() {
-                    cam += 1;
-                    continue;
-                }
-                // cache around that not open
-                if !am.is_open() {
-                    ls_candidate.push(ap);
-                }
-                // update around warn
-                am.bump_warn(false);
+    /// ### Arguments
+    /// `p` 原位置  
+    /// ### Return
+    /// 移动后位置
+    pub fn move_mine_randomly(&mut self, x: u8, y: u8) -> Position {
+        let p = Position(x, y);
+        let mut ls_around = Vec::with_capacity(8);
+        // count around mines
+        let mut w = 0;
+        for a in p.get_around(Position(self.width, self.height)) {
+            let Some(ap) = a else {break};
+            let am = self.get_mut_by_pos(ap);
+            if am.is_mine() {
+                w += 1;
+                continue;
             }
-            self.get_mut(pos).set_warn(cam);
+            // cache around that not open
+            if !am.is_open() {
+                ls_around.push(ap);
+            }
+            // update around warn
+            am.bump_warn(false);
         }
-        let len = ls_candidate.len();
+        // remove mine
+        self.get_mut_by_pos(p).set_warn(w);
+
+        let len = ls_around.len();
         // 1. select from all position
         if len < 1 {
             return self.try_random_one();
         }
+
         // 2. select from around
-        let p2 = if len > 1 {
-            ls_candidate[rand::thread_rng().gen_range(0..len)]
-        } else {
-            ls_candidate[0]
-        };
-        // set mine
-        self.get_mut(p2).set_mine();
-        for ap in p2.get_around(limit) {
-            let Some(ap) = ap else {continue};
-            let am = self.get_mut(ap);
-            if am.is_mine() {
-                continue;
-            }
-            am.bump_warn(true);
-        }
-        Ok(p2)
+        let p = ls_around[rand::thread_rng().gen_range(0..len)];
+        self.set_mine(p);
+        p
     }
 }
 
@@ -337,17 +322,17 @@ impl Position {
     /// x 和 y 的最大可用值
     /// ## Returns
     /// 最少3个，最多8个有效坐标
-    pub fn get_around(self, Self(mx, my): Self) -> [Option<Self>; 8] {
+    pub fn get_around(self, Self(mx, my): Self) -> [Option<Position>; 8] {
         let Self(x, y) = self;
         let mut ls = [None; 8];
-        let mut t = 0usize;
+        let mut t = 0;
         for ty in Self::limit(y, my) {
             for tx in Self::limit(x, mx) {
-                t += 1;
                 if tx == x && ty == y {
                     continue;
                 }
                 ls[t] = Some(Self(tx, ty));
+                t += 1;
             }
         }
         ls
@@ -358,22 +343,21 @@ impl Position {
     /// x 和 y 的最大可用值
     /// ## Returns
     /// 最少2个，最多4个有效坐标
-    pub fn get_nearby(self, Self(mx, my): Self) -> [Option<Self>; 4] {
+    pub fn get_nearby(self, Self(mx, my): Self) -> [Option<Position>; 4] {
         let Self(x, y) = self;
         let mut ls = [None; 4];
-        let ly = Self::limit(y, my);
-        if ly.contains(&(y - 1)) {
-            ls[0] = Some(Self(x, y - 1));
+        let mut t = 0;
+        for ty in Self::limit(y, my) {
+            if ty != y {
+                ls[t] = Some(Self(x, ty));
+                t += 1;
+            }
         }
-        if ly.contains(&(y + 1)) {
-            ls[1] = Some(Self(x, y + 1));
-        }
-        let lx = Self::limit(x, mx);
-        if lx.contains(&(x - 1)) {
-            ls[2] = Some(Self(x - 1, y));
-        }
-        if lx.contains(&(x + 1)) {
-            ls[3] = Some(Self(x + 1, y));
+        for tx in Self::limit(x, mx) {
+            if tx != x {
+                ls[t] = Some(Self(tx, y));
+                t += 1;
+            }
         }
         ls
     }
@@ -383,20 +367,6 @@ impl Display for Position {
         let Position(x, y) = self;
         write!(f, "(x:{x}, y:{y})")
     }
-}
-
-#[derive(Debug)]
-pub enum ErrorKind {
-    GenError,
-    GuessError,
-    MoveError,
-    InvalidPosition,
-}
-
-#[derive(Debug)]
-pub struct MineError {
-    pub kind: ErrorKind,
-    pub message: String,
 }
 
 #[cfg(test)]

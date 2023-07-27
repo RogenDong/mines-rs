@@ -84,13 +84,7 @@ fn ts_move() {
     format_by_range(&mines, lx, ly);
     println!("=====================================");
 
-    let pt = match mines.move_mine_randomly(pf) {
-        Ok(p) => p,
-        Err(e) => {
-            println!("{e:#?}");
-            return;
-        }
-    };
+    let pt = mines.move_mine_randomly(pf.0, pf.1);
     let (lx, ly) = (limit(pt.0, width), limit(pt.1, height));
     format_by_range(&mines, lx, ly);
     println!("mine moved from {pf} to {pt}");
