@@ -49,6 +49,7 @@ impl MineMap {
     // fn get_mut(&mut self, x: u8, y: u8) -> &mut Mark {
     //     &mut self.map[y as usize][x as usize]
     // }
+
     #[inline]
     fn get_mut_by_pos(&mut self, Position(x, y): Position) -> &mut Mark {
         &mut self.map[y as usize][x as usize]
@@ -99,7 +100,7 @@ impl MineMap {
             for a in p.get_around(limit) {
                 let Some(a) = a else {break};
                 self.get_mut_by_pos(a).bump_warn(true);
-                self.set_slot_state(p, SlotState::Sth);
+                self.set_slot_state(a, SlotState::Sth);
             } // for around mine
         } // for mines
     }
@@ -202,11 +203,14 @@ impl MineMap {
             // update around warn
             let bw = am.bump_warn(false);
             if bw < 1 {
-                self.set_slot_state(p, SlotState::Empty);
+                self.set_slot_state(ap, SlotState::Empty);
             }
         }
         // remove mine
         self.get_mut_by_pos(p).set_warn(w);
+        if w < 1 {
+            self.set_slot_state(p, SlotState::Empty);
+        }
 
         let len = ls_around.len();
         // 1. select from all position
@@ -218,5 +222,16 @@ impl MineMap {
         let p = ls_around[rand::thread_rng().gen_range(0..len)];
         self.set_mine(p);
         p
+    }
+
+    /// 获取指定位置周围所有彼此接触的空位的坐标
+    pub fn get_nearby_empty_slots(&mut self, x: u8, y: u8) -> Vec<Position> {
+        if x >= self.width || y >= self.height {
+            return Vec::with_capacity(0);
+        }
+        let (w, h) = (self.width as usize, self.height as usize);
+        let mut all = Vec::with_capacity(w * h);
+        // TODO
+        all
     }
 }

@@ -5,6 +5,86 @@ use rand::Rng;
 
 use crate::{MineMap, Position};
 
+#[test]
+fn ts_format() {
+    let mut mines = MineMap::from(99, 30, 30);
+    mines.shuffle();
+    println!("{}", mines.format_str());
+}
+
+#[test]
+fn ts_move() {
+    let (c, w, h) = (99, 15, 15);
+    let width = w as usize;
+    let height = h as usize;
+    let mut mines = MineMap::from(c, w, h);
+    mines.shuffle();
+
+    let mut rng = rand::thread_rng();
+    let (lx, ly, pf) = loop {
+        let y = rng.gen_range(0..h);
+        let x = rng.gen_range(0..w);
+        if mines.get(x, y).is_mine() {
+            break (limit(x, width), limit(y, height), Position(x, y));
+        }
+    };
+
+    format_by_range(&mines, lx, ly);
+
+    let pt = mines.move_mine_randomly(pf.0, pf.1);
+    println!(" >>>>>>>> {pf} -- {pt} <<<<<<<< \n");
+
+    format_by_range(&mines, limit(pt.0, width), limit(pt.1, height));
+}
+
+#[test]
+fn get_empty_slots() {
+    let (c, w, h) = (75, 20, 20);
+    let slot_count = w as usize * h as usize;
+    let mut mines = MineMap::from(c, w, h);
+    mines.shuffle();
+    let mut t = 0;
+    let mut rng = rand::thread_rng();
+    let (x, y) = loop {
+        if t >= slot_count {
+            mines.shuffle();
+            t = 0;
+            continue;
+        }
+        let y = rng.gen_range(0..h);
+        let x = rng.gen_range(0..w);
+        if mines.get(x, y).get_warn() < 1 {
+            break (x, y);
+        }
+        t += 1;
+    };
+    let mut buf = String::with_capacity(slot_count * 3);
+    let ls = mines.get_nearby_empty_slots(x, y);
+    let lim = Position(w, h);
+    let sp = Position(x, y);
+    println!("nearby {sp} empty slot: {}", ls.len());
+    for y in 0..mines.height {
+        for x in 0..mines.width {
+            let p = Position(x, y);
+            let m = mines.get(x, y);
+            let w = m.get_warn();
+            if sp == p {
+                buf.push_str(" @");
+            } else if m.is_mine() {
+                buf.push_str(" ·");
+            } else if ls.contains(&p) {
+                buf.push_str("  ");
+            } else if w > 0 && p.get_around(lim).iter().flatten().any(|a| ls.contains(a)) {
+                write!(buf, " {w}").unwrap();
+            } else {
+                buf.push_str("  ");
+            }
+        }
+        buf.push('\n');
+    }
+    println!("{buf}");
+}
+
 fn limit(v: u8, max: usize) -> RangeInclusive<usize> {
     let mut mx = v + 2;
     let mut mi = 0;
@@ -62,37 +142,4 @@ fn format_by_range(mines: &MineMap, lx: RangeInclusive<usize>, ly: RangeInclusiv
         buf.push('\n');
     }
     println!("{buf}");
-}
-
-#[test]
-fn ts_move() {
-    let (c, w, h) = (99, 15, 15);
-    let width = w as usize;
-    let height = h as usize;
-    let mut mines = MineMap::from(c, w, h);
-    mines.shuffle();
-
-    let mut rng = rand::thread_rng();
-    let (lx, ly, pf) = loop {
-        let y = rng.gen_range(0..h);
-        let x = rng.gen_range(0..w);
-        if mines.get(x, y).is_mine() {
-            break (limit(x, width), limit(y, height), Position(x, y));
-        }
-    };
-
-    format_by_range(&mines, lx, ly);
-    println!("=====================================");
-
-    let pt = mines.move_mine_randomly(pf.0, pf.1);
-    let (lx, ly) = (limit(pt.0, width), limit(pt.1, height));
-    format_by_range(&mines, lx, ly);
-    println!("mine moved from {pf} to {pt}");
-}
-
-#[test]
-fn ts_format() {
-    let mut mines = MineMap::from(99, 30, 30);
-    mines.shuffle();
-    println!("{}", mines.format_str());
 }
