@@ -47,6 +47,10 @@ impl Mark {
         };
         Self(v)
     }
+    pub fn is_empty(self) -> bool {
+        self.0 == 0 || (self.0 | 0xf0) == 0xf0
+    }
+
     pub fn set_flag(&mut self) {
         self.0 |= M_FLAGGED
     }
