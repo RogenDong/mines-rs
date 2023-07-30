@@ -98,7 +98,6 @@ impl MineMap {
             self.get_mut_by_pos(p).set_mine();
             self.set_slot_state(p, SlotState::Sth);
             for a in p.get_around(limit) {
-                let Some(a) = a else {break};
                 self.get_mut_by_pos(a).bump_warn(true);
                 self.set_slot_state(a, SlotState::Sth);
             } // for around mine
@@ -146,8 +145,7 @@ impl MineMap {
     }
 
     fn set_mine(&mut self, p: Position) {
-        for a in p.get_around(Position(self.width, self.height)) {
-            let Some(p) = a else {break};
+        for p in p.get_around(Position(self.width, self.height)) {
             let m = self.get_mut_by_pos(p);
             if !m.is_mine() {
                 m.bump_warn(true);
@@ -189,8 +187,7 @@ impl MineMap {
         let mut ls_around = Vec::with_capacity(8);
         // count around mines
         let mut w = 0;
-        for a in p.get_around(Position(self.width, self.height)) {
-            let Some(ap) = a else {break};
+        for ap in p.get_around(Position(self.width, self.height)) {
             let am = self.get_mut_by_pos(ap);
             if am.is_mine() {
                 w += 1;

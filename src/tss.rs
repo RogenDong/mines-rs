@@ -74,7 +74,7 @@ fn get_empty_slots() {
                 buf.push_str(" ·");
             } else if ls.contains(&p) {
                 buf.push_str("  ");
-            } else if w > 0 && p.get_around(lim).iter().flatten().any(|a| ls.contains(a)) {
+            } else if w > 0 && p.get_around(lim).iter().any(|a| ls.contains(a)) {
                 write!(buf, " {w}").unwrap();
             } else {
                 buf.push_str("  ");
