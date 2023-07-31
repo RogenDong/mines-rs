@@ -44,6 +44,7 @@ fn get_empty_slots() {
     let mut mines = MineMap::from(c, w, h);
     mines.shuffle();
     let mut t = 0;
+    let lim = Position(w, h);
     let mut rng = rand::thread_rng();
     let (x, y) = loop {
         if t >= slot_count {
@@ -53,14 +54,18 @@ fn get_empty_slots() {
         }
         let y = rng.gen_range(0..h);
         let x = rng.gen_range(0..w);
-        if mines.get(x, y).get_warn() < 1 {
-            break (x, y);
+        if mines.get(x, y).get_warn() == 1 {
+            let p = Position(x, y);
+            let a = p.get_around(lim).into_iter().filter(|p| mines.get_by_pos(*p).is_empty()).count();
+            let n = p.get_nearby(lim).into_iter().filter(|p| mines.get_by_pos(*p).is_empty()).count();
+            if n < 1 && a > 1{
+                break (x, y);
+            }
         }
         t += 1;
     };
     let mut buf = String::with_capacity(slot_count * 3);
     let ls = mines.get_nearby_empty_slots(x, y);
-    let lim = Position(w, h);
     let sp = Position(x, y);
     println!("nearby {sp} empty slot: {}", ls.len());
     for y in 0..mines.height {
@@ -71,11 +76,13 @@ fn get_empty_slots() {
             if sp == p {
                 buf.push_str(" @");
             } else if m.is_mine() {
-                buf.push_str(" ·");
-            } else if ls.contains(&p) {
-                buf.push_str("  ");
+                buf.push_str(" +");
+            // } else if ls.contains(&p) {
+            //     buf.push_str("  ");
             } else if w > 0 && p.get_around(lim).iter().any(|a| ls.contains(a)) {
                 write!(buf, " {w}").unwrap();
+            } else if m.is_empty() {
+                buf.push_str(" ·");
             } else {
                 buf.push_str("  ");
             }
