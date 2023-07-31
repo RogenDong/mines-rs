@@ -1,5 +1,5 @@
-mod mark;
-mod position;
+pub mod mark;
+pub mod position;
 
 #[cfg(test)]
 mod tss;
