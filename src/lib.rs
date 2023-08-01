@@ -46,9 +46,13 @@ impl MineMap {
         self.get(x, y)
     }
 
-    // fn get_mut(&mut self, x: u8, y: u8) -> &mut Mark {
-    //     &mut self.map[y as usize][x as usize]
-    // }
+    fn get_mut(&mut self, x: u8, y: u8) -> Option<&mut Mark> {
+        if x >= self.width || y>=self.height {
+            None
+        } else {
+            Some(&mut self.map[y as usize][x as usize])
+        }
+    }
 
     #[inline]
     fn get_mut_by_pos(&mut self, Position(x, y): Position) -> &mut Mark {
@@ -267,4 +271,17 @@ impl MineMap {
         }
         all
     }
+
+    pub fn open_slot(&mut self, x: u8, y: u8) {
+        if let Some(mark) = self.get_mut(x, y) {
+            mark.open()
+        }
+    }
+
+    pub fn set_flag(&mut self, x: u8, y: u8) {
+        if let Some(mark) = self.get_mut(x, y) {
+            mark.set_flag()
+        }
+    }
+
 }
