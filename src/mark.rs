@@ -62,7 +62,7 @@ impl Mark {
 
     /// 打开此单元
     /// **只能开，不能关**
-    pub fn set_open(&mut self) {
+    pub fn open(&mut self) {
         self.0 |= M_OPENED
     }
     pub fn is_open(self) -> bool {
