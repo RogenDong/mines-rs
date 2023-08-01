@@ -16,7 +16,7 @@ enum SlotState {
 }
 
 pub struct MineMap {
-    pub count: u8,
+    pub count: u16,// u8::MAX ** 2 < u16::MAX
     pub width: u8,
     pub height: u8,
     map: Box<[[Mark; 256]; 256]>,
@@ -28,7 +28,7 @@ impl MineMap {
         self.state_map = Box::new([[SlotState::Empty; 256]; 256]);
     }
 
-    pub fn from(count: u8, width: u8, height: u8) -> Self {
+    pub fn from(count: u16, width: u8, height: u8) -> Self {
         Self {
             count,
             width,
