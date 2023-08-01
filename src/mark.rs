@@ -51,13 +51,17 @@ impl Mark {
         self.0 == 0 || (self.0 | 0xf0) == 0xf0
     }
 
+    /// 切换插旗
+    /// **不提供参数指定“是/否”，而是切换**
     pub fn set_flag(&mut self) {
-        self.0 |= M_FLAGGED
+        self.0 ^= M_FLAGGED
     }
     pub fn is_flagged(self) -> bool {
         (self.0 & M_FLAGGED) > 0
     }
 
+    /// 打开此单元
+    /// **只能开，不能关**
     pub fn set_open(&mut self) {
         self.0 |= M_OPENED
     }
@@ -71,7 +75,7 @@ impl Mark {
     pub fn is_mine(self) -> bool {
         ((self.0 | 0xf0) ^ 0xf0) > 8
     }
-
+    
     pub fn set_safe(&mut self) {
         if !self.is_mine() {
             self.0 |= M_GUESS_SAFE;
