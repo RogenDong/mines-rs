@@ -228,7 +228,43 @@ impl MineMap {
         }
         let (w, h) = (self.width as usize, self.height as usize);
         let mut all = Vec::with_capacity(w * h);
-        // TODO
+        let mut next = Vec::with_capacity((w + h) * 2 - 4);
+        let mut current = Vec::with_capacity((w + h) * 2 - 4);
+        
+        let start_pos = Position(x, y);
+        // tag start position
+        if let SlotState::Empty = self.get_slot_state(start_pos) {
+            self.set_slot_state(start_pos, SlotState::Tagged);
+            all.push(start_pos);
+        }
+        current.push(start_pos);
+        let lim = Position(self.width, self.height);
+        // traverse around, collect empty slots.
+        loop {
+            for p in current.iter() {
+                for a in p.get_around(lim) {
+                    let SlotState::Empty = self.get_slot_state(a) else {continue};
+                    self.set_slot_state(a, SlotState::Tagged);
+                    next.push(a);
+                    all.push(a);
+                }
+            }
+            if next.is_empty() {
+                break;
+            }
+            current.clear();
+            current.append(&mut next);
+            next.clear();
+        }
+        // reset state
+        if let SlotState::Tagged = self.get_slot_state(start_pos) {
+            self.set_slot_state(start_pos, SlotState::Empty);
+        }
+        for p in all.iter() {
+            if let SlotState::Tagged = self.get_slot_state(*p) {
+                self.set_slot_state(*p, SlotState::Empty)
+            }
+        }
         all
     }
 }
