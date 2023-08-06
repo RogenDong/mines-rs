@@ -16,7 +16,7 @@ enum SlotState {
 }
 
 pub struct MineMap {
-    pub count: u16,// u8::MAX ** 2 < u16::MAX
+    pub count: u16, // u8::MAX ** 2 < u16::MAX
     pub width: u8,
     pub height: u8,
     map: Box<[[Mark; 256]; 256]>,
@@ -47,7 +47,7 @@ impl MineMap {
     }
 
     fn get_mut(&mut self, x: u8, y: u8) -> Option<&mut Mark> {
-        if x >= self.width || y>=self.height {
+        if x >= self.width || y >= self.height {
             None
         } else {
             Some(&mut self.map[y as usize][x as usize])
@@ -70,10 +70,15 @@ impl MineMap {
     }
 
     /// 预览刷新的地雷
-    fn preview_shuffle(&self) -> Vec<Position> {
+    fn preview_shuffle(&self, ignore: Option<Position>) -> Vec<Position> {
         let (w, h) = (self.width as usize, self.height as usize);
         if self.count < 1 || w * h < self.count as usize {
             return Vec::with_capacity(0);
+        }
+        let mut ls_ignore = Vec::with_capacity(9);
+        if let Some(i) = ignore {
+            ls_ignore.append(&mut i.get_around(Position(self.width, self.height)).to_vec());
+            ls_ignore.push(i);
         }
         let mut mine_map = Vec::with_capacity(self.count as usize);
         let mut rng = rand::thread_rng();
@@ -82,6 +87,9 @@ impl MineMap {
             let y = rng.gen_range(0..self.height);
             let x = rng.gen_range(0..self.width);
             let xy = Position(x, y);
+            if ls_ignore.contains(&xy) {
+                continue;
+            }
             if !mine_map.contains(&xy) {
                 mine_map.push(xy);
                 t += 1;
@@ -91,8 +99,8 @@ impl MineMap {
     }
 
     // 刷新地雷
-    pub fn shuffle(&mut self) {
-        let ls_pv_mine = self.preview_shuffle();
+    pub fn shuffle(&mut self, ignore: Option<Position>) {
+        let ls_pv_mine = self.preview_shuffle(ignore);
         if ls_pv_mine.is_empty() {
             return;
         }
@@ -226,7 +234,7 @@ impl MineMap {
     }
 
     /// 获取指定位置周围所有彼此接触的空位的坐标
-    pub fn get_nearby_empty_slots(&mut self, x: u8, y: u8) -> Vec<Position> {
+    pub fn get_nearby_empty_slots(&self, x: u8, y: u8) -> Vec<Position> {
         if x >= self.width || y >= self.height {
             return Vec::with_capacity(0);
         }
@@ -234,11 +242,12 @@ impl MineMap {
         let mut all = Vec::with_capacity(w * h);
         let mut next = Vec::with_capacity((w + h) * 2 - 4);
         let mut current = Vec::with_capacity((w + h) * 2 - 4);
-        
+        let mut state_map = self.state_map.as_ref().clone();
+
         let start_pos = Position(x, y);
         // tag start position
         if let SlotState::Empty = self.get_slot_state(start_pos) {
-            self.set_slot_state(start_pos, SlotState::Tagged);
+            state_map[y as usize][x as usize] = SlotState::Tagged;
             all.push(start_pos);
         }
         current.push(start_pos);
@@ -246,9 +255,9 @@ impl MineMap {
         // traverse around, collect empty slots.
         loop {
             for p in current.iter() {
-                for a in p.get_around(lim) {
+                for a @ Position(ax, ay) in p.get_around(lim) {
                     let SlotState::Empty = self.get_slot_state(a) else {continue};
-                    self.set_slot_state(a, SlotState::Tagged);
+                    state_map[ay as usize][ax as usize] = SlotState::Tagged;
                     next.push(a);
                     all.push(a);
                 }
@@ -258,24 +267,18 @@ impl MineMap {
             }
             current.clear();
             current.append(&mut next);
-            next.clear();
-        }
-        // reset state
-        if let SlotState::Tagged = self.get_slot_state(start_pos) {
-            self.set_slot_state(start_pos, SlotState::Empty);
-        }
-        for p in all.iter() {
-            if let SlotState::Tagged = self.get_slot_state(*p) {
-                self.set_slot_state(*p, SlotState::Empty)
-            }
         }
         all
     }
 
-    pub fn open_slot(&mut self, x: u8, y: u8) {
+    pub fn open(&mut self, x: u8, y: u8) {
         if let Some(mark) = self.get_mut(x, y) {
             mark.open()
         }
+    }
+
+    pub fn open_by_pos(&mut self, Position(x, y): Position) {
+        self.open(x, y)
     }
 
     pub fn set_flag(&mut self, x: u8, y: u8) {
@@ -284,4 +287,7 @@ impl MineMap {
         }
     }
 
+    pub fn set_flag_by_pos(&mut self, Position(x, y): Position) {
+        self.set_flag(x, y)
+    }
 }

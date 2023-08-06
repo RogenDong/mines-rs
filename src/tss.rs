@@ -8,7 +8,10 @@ use crate::{MineMap, Position};
 #[test]
 fn ts_format() {
     let mut mines = MineMap::from(99, 30, 30);
-    mines.shuffle();
+    mines.shuffle(None);
+    println!("{}\n", mines.format_str());
+
+    mines.shuffle(Some(Position(11, 12)));
     println!("{}", mines.format_str());
 }
 
@@ -18,7 +21,7 @@ fn ts_move() {
     let width = w as usize;
     let height = h as usize;
     let mut mines = MineMap::from(c, w, h);
-    mines.shuffle();
+    mines.shuffle(None);
 
     let mut rng = rand::thread_rng();
     let (lx, ly, pf) = loop {
@@ -42,13 +45,13 @@ fn get_empty_slots() {
     let (c, w, h) = (75, 20, 20);
     let slot_count = w as usize * h as usize;
     let mut mines = MineMap::from(c, w, h);
-    mines.shuffle();
+    mines.shuffle(None);
     let mut t = 0;
     let lim = Position(w, h);
     let mut rng = rand::thread_rng();
     let (x, y) = loop {
         if t >= slot_count {
-            mines.shuffle();
+            mines.shuffle(None);
             t = 0;
             continue;
         }
