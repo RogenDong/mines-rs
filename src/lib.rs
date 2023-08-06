@@ -290,4 +290,21 @@ impl MineMap {
     pub fn set_flag_by_pos(&mut self, Position(x, y): Position) {
         self.set_flag(x, y)
     }
+
+    pub fn update_by(&mut self, x: u8, y: u8, mark_val: u8) {
+        let Some(old) = self.get_mut(x, y) else {return};
+        let def = Mark(old.0 ^ mark_val);
+        if def.is_open() {
+            old.open()
+        }
+        if def.is_flagged() != old.is_flagged() {
+            old.set_flag()
+        }
+        if def.guess_safe() {
+            old.set_safe()
+        }
+        if def.guess_suspicious() {
+            old.set_suspicious()
+        }
+    }
 }
