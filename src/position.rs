@@ -10,7 +10,8 @@ impl Position {
         let mut mi = 0;
         if v > 0 {
             mi = v - 1;
-        } else if v >= (max - 1) {
+        }
+        if v >= (max - 1) {
             mx = v;
         }
         mi..=mx
