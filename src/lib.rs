@@ -7,6 +7,7 @@ mod tss;
 use mark::Mark;
 use position::Position;
 use rand::Rng;
+use smallvec::SmallVec;
 
 #[derive(Clone, Copy)]
 enum SlotState {
@@ -75,9 +76,9 @@ impl MineMap {
         if self.count < 1 || w * h < self.count as usize {
             return Vec::with_capacity(0);
         }
-        let mut ls_ignore = Vec::with_capacity(9);
+        let mut ls_ignore: SmallVec<[Position; 9]> = SmallVec::new();
         if let Some(i) = ignore {
-            ls_ignore.append(&mut i.get_around(Position(self.width, self.height)).to_vec());
+            ls_ignore.append(&mut i.get_around(Position(self.width, self.height)));
             ls_ignore.push(i);
         }
         let mut mine_map = Vec::with_capacity(self.count as usize);
@@ -87,7 +88,7 @@ impl MineMap {
             let y = rng.gen_range(0..self.height);
             let x = rng.gen_range(0..self.width);
             let xy = Position(x, y);
-            if ls_ignore.contains(&xy) {
+            if !ls_ignore.is_empty() && ls_ignore.contains(&xy) {
                 continue;
             }
             if !mine_map.contains(&xy) {
@@ -233,8 +234,12 @@ impl MineMap {
         p
     }
 
-    /// 获取指定位置周围所有彼此接触的空位的坐标
-    pub fn get_nearby_empty_slots(&self, x: u8, y: u8) -> Vec<Position> {
+    /// ### 获取指定位置周围所有彼此接触的空位的坐标
+    /// ## Arguments
+    /// `x, y` 扫描开始位置
+    /// ## Return
+    /// 被打开的位置
+    pub fn get_nearby_empty_area(&self, x: u8, y: u8) -> Vec<Position> {
         if x >= self.width || y >= self.height {
             return Vec::with_capacity(0);
         }
@@ -253,17 +258,18 @@ impl MineMap {
         current.push(start_pos);
         let lim = Position(self.width, self.height);
         // traverse around, collect empty slots.
-        loop {
+        while !current.is_empty() {
             for p in current.iter() {
-                for a @ Position(ax, ay) in p.get_around(lim) {
-                    let SlotState::Empty = self.get_slot_state(a) else {continue};
-                    state_map[ay as usize][ax as usize] = SlotState::Tagged;
-                    next.push(a);
+                for a in p.get_around(lim) {
+                    let (ax, ay) = (a.0 as usize, a.1 as usize);
+                    match state_map[ay][ax] {
+                        SlotState::Tagged => continue,
+                        SlotState::Empty => next.push(a),
+                        _ => {}
+                    }
+                    state_map[ay][ax] = SlotState::Tagged;
                     all.push(a);
                 }
-            }
-            if next.is_empty() {
-                break;
             }
             current.clear();
             current.append(&mut next);

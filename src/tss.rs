@@ -42,35 +42,16 @@ fn ts_move() {
 
 #[test]
 fn get_empty_slots() {
-    let (c, w, h) = (75, 20, 20);
-    let slot_count = w as usize * h as usize;
+    let (c, w, h) = (1024, 75, 75);
     let mut mines = MineMap::from(c, w, h);
-    mines.shuffle(None);
-    let mut t = 0;
-    let lim = Position(w, h);
-    let mut rng = rand::thread_rng();
-    let (x, y) = loop {
-        if t >= slot_count {
-            mines.shuffle(None);
-            t = 0;
-            continue;
-        }
-        let y = rng.gen_range(0..h);
-        let x = rng.gen_range(0..w);
-        if mines.get(x, y).get_warn() == 1 {
-            let p = Position(x, y);
-            let a = p.get_around(lim).into_iter().filter(|p| mines.get_by_pos(*p).is_empty()).count();
-            let n = p.get_nearby(lim).into_iter().filter(|p| mines.get_by_pos(*p).is_empty()).count();
-            if n < 1 && a > 1{
-                break (x, y);
-            }
-        }
-        t += 1;
-    };
-    let mut buf = String::with_capacity(slot_count * 3);
-    let ls = mines.get_nearby_empty_slots(x, y);
+    // mines.shuffle(None);
+    let (x, y) = found(w, h, &mut mines);
+
+    let mut buf = String::with_capacity(w as usize * h as usize * 3);
+    let found = mines.get_nearby_empty_area(x, y);
+    // let lim = Position(w, h);
     let sp = Position(x, y);
-    println!("nearby {sp} empty slot: {}", ls.len());
+    println!("nearby {sp} empty slot: {}", found.len());
     for y in 0..mines.height {
         for x in 0..mines.width {
             let p = Position(x, y);
@@ -80,10 +61,12 @@ fn get_empty_slots() {
                 buf.push_str(" @");
             } else if m.is_mine() {
                 buf.push_str(" +");
-            // } else if ls.contains(&p) {
-            //     buf.push_str("  ");
-            } else if w > 0 && p.get_around(lim).iter().any(|a| ls.contains(a)) {
-                write!(buf, " {w}").unwrap();
+            } else if found.contains(&p) {
+                if w > 0 {
+                    write!(buf, " {w}").unwrap();
+                } else {
+                    buf.push_str(" ·");
+                }
             } else if m.is_empty() {
                 buf.push_str(" ·");
             } else {
@@ -152,4 +135,32 @@ fn format_by_range(mines: &MineMap, lx: RangeInclusive<usize>, ly: RangeInclusiv
         buf.push('\n');
     }
     println!("{buf}");
+}
+
+fn found(w: u8, h: u8, mines: &mut MineMap) -> (u8, u8) {
+    let lim = Position(w, h);
+    loop {
+        mines.shuffle(None);
+        for y in 1..(h - 1) {
+            for x in 1..(w - 1) {
+                if mines.get(x, y).get_warn() != 1 {
+                    continue;
+                }
+                let p = Position(x, y);
+                let a = p
+                    .get_around(lim)
+                    .into_iter()
+                    .filter(|p| mines.get_by_pos(*p).is_empty())
+                    .count();
+                let n = p
+                    .get_nearby(lim)
+                    .into_iter()
+                    .filter(|p| mines.get_by_pos(*p).is_empty())
+                    .count();
+                if n < 1 && a == 2 {
+                    return (x, y);
+                }
+            } // for: x
+        } // for: y
+    } // loop
 }
