@@ -81,8 +81,10 @@ impl Mark {
             self.0 |= M_GUESS_SAFE;
         }
     }
+    /// 切换可疑标识
+    /// **不提供参数指定“是/否”，而是切换**
     pub fn set_suspicious(&mut self) {
-        self.0 |= M_GUESS_SUSP
+        self.0 ^= M_GUESS_SUSP
     }
 
     pub fn is_guess(self) -> bool {
