@@ -1,4 +1,3 @@
-
 // 位标识：是否打开
 const BIT_OPEN: u8 = 0x80;
 // 位标识：是否插旗
@@ -62,15 +61,14 @@ impl Cell {
     }
 
     #[inline]
-    pub fn set_open(&mut self) {
-        self.0 |= BIT_OPEN
+    pub fn switch_open(&mut self) {
+        self.0 ^= BIT_OPEN
     }
 
     #[inline]
-    pub fn set_flag(&mut self) {
-        self.0 |= BIT_FLAG
+    pub fn switch_flag(&mut self) {
+        self.0 ^= BIT_FLAG
     }
-
 }
 
 
