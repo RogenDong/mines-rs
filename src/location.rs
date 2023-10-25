@@ -18,20 +18,36 @@ impl Loc {
         }
         mi..=mx
     }
-    
+
     /// 获取周围一周的坐标（距离1单位）
-    /// ## Returns
-    /// 最少3个，最多8个有效坐标
-    pub fn get_around(&self) -> SmallVec<[Loc; 8]> {
-        let &Loc(x, y) = self;
+    /// ### Returns
+    /// 无效、越界坐标坐标需要自行过滤
+    pub fn get_around(&self) -> SmallVec<[Self; 8]> {
+        let &Self(x, y) = self;
         let mut ls = SmallVec::new();
+        let edge_x = Self::edge(x);
         for ty in Self::edge(y) {
-            for tx in Self::edge(x) {
+            for tx in edge_x {
                 if tx != x || ty != y {
                     ls.push(Self(tx, ty));
                 }
             }
         }
+        ls
+    }
+
+    /// 获取上下左右4格的坐标
+    /// ### Returns
+    /// 无效、越界坐标坐标需要自行过滤
+    pub fn get_nearby(&self) -> SmallVec<[Self; 4]> {
+        let &Self(x, y) = self;
+        let edge_y = Self::edge(y);
+        let edge_x = Self::edge(x);
+        let mut ls = SmallVec::new();
+        ls.push(Self(x, *edge_y.start()));
+        ls.push(Self(*edge_x.start(), y));
+        ls.push(Self(x, *edge_y.end()));
+        ls.push(Self(*edge_x.end(), y));
         ls
     }
 }
