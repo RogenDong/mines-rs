@@ -11,17 +11,9 @@ const BIT_WARN: u8 = 0x1F;
 /// - `0100 0000` 是否已插旗
 /// - `0001 1111` 周围地雷数
 #[derive(Clone, Copy, Eq)]
-pub struct Cell(u8);
+pub struct Cell(pub u8);
 
 impl Cell {
-    pub fn new() -> Self {
-        Self(0)
-    }
-
-    pub fn from(value: u8) -> Self {
-        Self(value)
-    }
-
     #[inline]
     pub fn get_warn(&self) -> u8 {
         self.0 & BIT_WARN
