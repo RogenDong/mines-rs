@@ -45,10 +45,8 @@ impl Cell {
             if v != BIT_WARN {
                 self.0 += 1;
             }
-        } else {
-            if v > 0 {
-                self.0 -= 1;
-            }
+        } else if v > 0 {
+            self.0 -= 1;
         }
     }
 
