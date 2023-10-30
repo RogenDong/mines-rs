@@ -27,7 +27,7 @@ impl Loc {
         let mut ls = SmallVec::new();
         let edge_x = Self::edge(x);
         for ty in Self::edge(y) {
-            for tx in edge_x {
+            for tx in edge_x.clone() {
                 if tx != x || ty != y {
                     ls.push(Self(tx, ty));
                 }
