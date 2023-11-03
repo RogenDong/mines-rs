@@ -7,6 +7,13 @@ impl Loc {
         Loc(x, y)
     }
 
+    /// 通过usize的x,y构造实例
+    /// - x,y的最大值为 255，超过该值会被覆盖
+    pub fn from(x: usize, y: usize) -> Self {
+        let (x, y) = (if x > 255 { 255 } else { x }, if y > 255 { 255 } else { y });
+        Loc(x as u8, y as u8)
+    }
+
     fn edge(v: u8) -> std::ops::RangeInclusive<u8> {
         let mut mx = u8::MAX;
         let mut mi = 0;
@@ -61,6 +68,6 @@ impl PartialEq for Loc {
 use std::fmt::{Display, Formatter, Result};
 impl Display for Loc {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(f, "(x:{}, y:{})", self.0, self.1)
+        write!(f, "({}, {})", self.0, self.1)
     }
 }

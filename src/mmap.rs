@@ -1,12 +1,10 @@
-
-
 use crate::{cell::Cell, location::Loc};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 
-// const MAX_LEN: usize = 255 * 255;
+const MAX_LEN: usize = 255 * 255;
 // const MAX_LEN_STAT: usize = MAX_LEN / 8;
-//
+
 // fn is_tag(map: &Vec<u8>, f: usize) -> bool {
 //     if f == 0 {
 //         map[0] & 0x80 > 0
@@ -25,6 +23,64 @@ use rand::thread_rng;
 //     }
 // }
 
+#[inline]
+pub fn get_idx(x: usize, y: usize, w: usize, h: usize) -> Option<usize> {
+    if x < w && y < h {
+        Some(y * w + x)
+    } else {
+        None
+    }
+}
+
+#[allow(non_snake_case)]
+pub fn get_bmp_idx(x: usize, y: usize, w: usize, h: usize) -> Option<[usize; 9]> {
+    let i = get_idx(x, y, w, h)?;
+    if i == 0 {
+        return Some([0, 0, 0, 0, 0, 1, 0, w, h + 1]);
+    }
+    let (iN, iW, iE, iS) = (if i < w { 0 } else { i - w }, i - 1, i + 1, i + w);
+    if i == MAX_LEN - 1 {
+        return Some([iN - 1, iN, 0, iW, 0, 0, 0, 0, 0]);
+    }
+    //  A N B | A=N-1 N=i-w B=N+1
+    //  W   E | W=i-1       E=i+1
+    //  C S D | C=S-1 S=i+w D=S+1
+    const N: usize = 1;
+    const W: usize = 3;
+    const E: usize = 5;
+    const S: usize = 7;
+    let mut ls = [
+        if iN == 0 { 0 } else { iN - 1 },
+        iN,
+        iN + 1,
+        iW,
+        0,
+        iE,
+        iS - 1,
+        iS,
+        iS + 1,
+    ];
+    if x == 0 {
+        ls[W] = 0;
+        ls[N - 1] = 0;
+        ls[S - 1] = 0;
+    } else if x == w - 1 {
+        ls[E] = 0;
+        ls[N + 1] = 0;
+        ls[S + 1] = 0;
+    }
+    if y == 0 {
+        ls[N] = 0;
+        ls[N - 1] = 0;
+        ls[N + 1] = 0;
+    } else if y == h - 1 {
+        ls[S] = 0;
+        ls[S - 1] = 0;
+        ls[S + 1] = 0;
+    }
+    Some(ls)
+}
+
 pub struct MineMap {
     // u8::MAX ** 2 < u16::MAX
     pub count: u16,
@@ -37,7 +93,11 @@ pub struct MineMap {
 impl MineMap {
     pub fn new(count: u16, width: u8, height: u8) -> Self {
         let cap = width as usize * height as usize;
-        let cap = if count == 0 || cap < count as usize { 0 } else { cap };
+        let cap = if count == 0 || cap < count as usize {
+            0
+        } else {
+            cap
+        };
         Self {
             count,
             width,
@@ -48,28 +108,23 @@ impl MineMap {
     }
 
     #[inline]
-    fn get_index(&self, x: u8, y: u8) -> Option<usize> {
-        if x < self.width && y < self.height {
-            Some((y as usize) * (self.width as usize) + (x as usize))
-        } else {
-            None
-        }
+    fn get_idx(&self, x: usize, y: usize) -> Option<usize> {
+        get_idx(x, y, self.width as usize, self.height as usize)
     }
 
-    #[allow(dead_code)]
-    #[inline]
-    fn get_index_by_loc(&self, Loc(x, y): Loc) -> Option<usize> {
-        self.get_index(x, y)
-    }
+    // #[inline]
+    // fn get_index_by_loc(&self, Loc(x, y): Loc) -> Option<usize> {
+    //     self.get_idx(x as usize, y as usize)
+    // }
 
     #[inline]
-    pub fn get(&self, x: u8, y: u8) -> Option<Cell> {
-        Some(Cell(*self.map.get(self.get_index(x, y)?)?))
+    pub fn get(&self, x: usize, y: usize) -> Option<Cell> {
+        Some(Cell(*self.map.get(self.get_idx(x, y)?)?))
     }
 
     #[inline]
     pub fn get_by_loc(&self, Loc(x, y): Loc) -> Option<Cell> {
-        self.get(x, y)
+        self.get(x as usize, y as usize)
     }
 
     // 刷新地雷
@@ -98,32 +153,29 @@ impl MineMap {
                 break;
             }
         }
-
         for y in 0..h {
             for x in 0..w {
-                let (xu8, yu8) = (x as u8, y as u8);
-                let Some(c) = self.get(xu8, yu8) else {
-                    panic!("invalid location !!! ({x}, {y}) !!!")
-                };
-                if !c.is_mine() {
-                    continue;
-                }
-                let l = Loc(xu8, yu8);
-                for al in l.get_around() {
-                    if let Some(av) = self.get_mut_by_loc(al) {
-                        *av += 1;
-                    }
-                }
-            }
-        }
+                if let Some(i) = get_idx(x, y, w, h) {
+                    if self.map[i] > 8 {
+                        if let Some(ls) = get_bmp_idx(x, y, w, h) {
+                            for ii in ls {
+                                if ii > 0 {
+                                    *self.map.get_mut(ii).unwrap() += 1;
+                                }
+                            }
+                        } // get around
+                    } // found mine
+                } // get index
+            } // loop column
+        } // loop row
     }
 
     pub fn format_str(&self) -> String {
         let (w, h) = (self.width as usize, self.height as usize);
         let mut buf = String::with_capacity(w * 2 * h + h);
         use std::fmt::Write;
-        for y in 0..self.height {
-            for x in 0..self.width {
+        for y in 0..h {
+            for x in 0..w {
                 if let Some(c) = self.get(x, y) {
                     if c.is_mine() {
                         buf.push_str(" +");
@@ -142,75 +194,65 @@ impl MineMap {
 
     // private
     #[inline]
-    fn get_mut(&mut self, x: u8, y: u8) -> Option<&mut u8> {
-        if x < self.width && y < self.height {
-            Some(self.map.get_mut(y as usize * self.width as usize + x as usize)?)
+    fn get_mut(&mut self, x: usize, y: usize) -> Option<&mut u8> {
+        let w = self.width as usize;
+        if x < w && y < self.height as usize {
+            Some(self.map.get_mut(y * w + x)?)
         } else {
             None
         }
     }
 
-    // private
-    #[inline]
-    fn get_mut_by_loc(&mut self, Loc(x, y): Loc) -> Option<&mut u8> {
-        self.get_mut(x, y)
-    }
-
-    // fn set_tag(&mut self, x: u8, y: u8) {
-    //     if let Some(f) = self.get_index(x, y) {
+    // fn set_tag(&mut self, x: usize, y: usize) {
+    //     if let Some(f) = self.get_idx(x, y) {
     //         set_tag(&mut self.stat, f);
     //     }
     // }
 
-    pub fn open(&mut self, x: u8, y: u8) {
-        // let mut b = false;
+    pub fn open(&mut self, x: usize, y: usize) {
         if let Some(v) = self.get_mut(x, y) {
             let mut c = Cell(*v);
             if !c.is_open() {
                 c.switch_open();
                 *v = c.0;
-                // b = true;
+                let _ = v; // drop *mut
+                // self.set_tag(x, y);
             }
         }
-        // if b {
-        //     self.set_tag(x, y);
-        // }
     }
 
     pub fn open_by_loc(&mut self, Loc(x, y): Loc) {
-        self.open(x, y)
+        self.open(x as usize, y as usize)
     }
 
-    pub fn switch_flag(&mut self, x: u8, y: u8) {
-        // let mut b = false;
+    pub fn switch_flag(&mut self, x: usize, y: usize) {
         if let Some(v) = self.get_mut(x, y) {
             let mut c = Cell(*v);
             c.switch_flag();
             *v = c.0;
-            // b = true;
+            let _ = v; // drop *mut
+            // self.set_tag(x, y);
         }
-        // if b {
-        //     self.set_tag(x, y);
-        // }
     }
 
     pub fn switch_flag_by_loc(&mut self, Loc(x, y): Loc) {
-        self.switch_flag(x, y)
+        self.switch_flag(x as usize, y as usize)
     }
 
-    // pub fn get_nearby_empty_area(&self, x: u8, y: u8) -> Vec<Loc> {
-    //     if x >= self.width || y >= self.height {
-    //         return Vec::with_capacity(0);
-    //     }
-    //     let mut stat = self.stat.clone();
+    // pub fn get_nearby_empty_area(&self, x: usize, y: usize) -> Result<Vec<Loc>, ()> {
     //     let (w, h) = (self.width as usize, self.height as usize);
-    //     let mut all = Vec::with_capacity(w * h);
-    //     let tmp = (w + h) * 2 - 4;
-    //     let mut next = Vec::with_capacity(tmp);
-    //     let mut current = Vec::with_capacity(tmp);
+    //     if x >= w || y >= h {
+    //         return Err(());
+    //     }
+    //     let start_pos = Loc(x as u8, y as u8);
+    //     let start_idx = self.get_index_by_loc(start_pos).ok_or_else(|| ())?;
     //
-    //     let start_pos = Loc(x, y);
-    //     let start_idx = self.get_index_by_loc(start_pos).unwrap();
+    //     let mut stat = self.stat.clone();
+    //     let cap = (w + h) * 2 - 4;
+    //     let mut all = Vec::with_capacity(w * h);
+    //     let mut next = Vec::with_capacity(cap);
+    //     let mut current = Vec::with_capacity(cap);
+    //
     //     // tag start location
     //     if !is_tag(&stat, start_idx) {
     //         set_tag(&mut stat, start_idx);
@@ -235,6 +277,6 @@ impl MineMap {
     //         current.clear();
     //         current.append(&mut next);
     //     }
-    //     all
+    //     Ok(all)
     // }
 }
