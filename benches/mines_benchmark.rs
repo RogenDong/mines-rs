@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use mines::{cell::Cell, mmap::MineMap, location::Loc};
+use mines::{cell::Cell, location::Loc, mmap::MineMap};
 use rand::{seq::SliceRandom, thread_rng};
 
 const WIDTH: usize = 255;
@@ -66,18 +66,22 @@ fn ts_bmp_warn(cri: &mut Criterion) {
 
 #[allow(non_snake_case)]
 pub fn get_bmp_idx(x: usize, y: usize) -> Option<[usize; 9]> {
-    let i = get_idx(x, y)?;
+    const M: usize = usize::MAX - 1;
+    let mut i = get_idx(x, y)?;
     if i == 0 {
-        return Some([0, 0, 0, 0, 0, 1, 0, WIDTH, HEIGHT + 1]);
+        return Some([M, M, M, M, M, 1, M, WIDTH, HEIGHT + 1]);
+    }
+    if i >= MAX_LEN {
+        i = M;
     }
     let (iN, iW, iE, iS) = (
-        if i < WIDTH { 0 } else { i - WIDTH },
+        if i < WIDTH { M } else { i - WIDTH },
         i - 1,
         i + 1,
-        i + WIDTH,
+        if i >= MAX_LEN { M } else { i + WIDTH },
     );
     if i == MAX_LEN - 1 {
-        return Some([iN - 1, iN, 0, iW, 0, 0, 0, 0, 0]);
+        return Some([iN - 1, iN, M, iW, M, M, M, M, M]);
     }
     //  A N B | A=N-1 N=i-w B=N+1
     //  W   E | W=i-1       E=i+1
@@ -91,29 +95,29 @@ pub fn get_bmp_idx(x: usize, y: usize) -> Option<[usize; 9]> {
         iN,
         iN + 1,
         iW,
-        0,
+        M,
         iE,
         iS - 1,
         iS,
         iS + 1,
     ];
     if x == 0 {
-        ls[W] = 0;
-        ls[N - 1] = 0;
-        ls[S - 1] = 0;
+        ls[W] = M;
+        ls[N - 1] = M;
+        ls[S - 1] = M;
     } else if x == WIDTH - 1 {
-        ls[E] = 0;
-        ls[N + 1] = 0;
-        ls[S + 1] = 0;
+        ls[E] = M;
+        ls[N + 1] = M;
+        ls[S + 1] = M;
     }
     if y == 0 {
-        ls[N] = 0;
-        ls[N - 1] = 0;
-        ls[N + 1] = 0;
+        ls[N] = M;
+        ls[N - 1] = M;
+        ls[N + 1] = M;
     } else if y == HEIGHT - 1 {
-        ls[S] = 0;
-        ls[S - 1] = 0;
-        ls[S + 1] = 0;
+        ls[S] = M;
+        ls[S - 1] = M;
+        ls[S + 1] = M;
     }
     Some(ls)
 }
@@ -132,7 +136,7 @@ fn ts_bmp_warn_by_index(cri: &mut Criterion) {
                         if map[i] > 8 {
                             if let Some(ls) = get_bmp_idx(x, y) {
                                 for ii in ls {
-                                    if ii > 0 {
+                                    if ii < MAX_LEN {
                                         *map.get_mut(ii).unwrap() += 1;
                                     }
                                 }

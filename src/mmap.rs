@@ -34,13 +34,23 @@ pub fn get_idx(x: usize, y: usize, w: usize, h: usize) -> Option<usize> {
 
 #[allow(non_snake_case)]
 pub fn get_bmp_idx(x: usize, y: usize, w: usize, h: usize) -> Option<[usize; 9]> {
-    let i = get_idx(x, y, w, h)?;
+    const M: usize = usize::MAX - 1;
+    let mut i = get_idx(x, y, w, h)?;
     if i == 0 {
-        return Some([0, 0, 0, 0, 0, 1, 0, w, h + 1]);
+        return Some([M, M, M, M, M, 1, M, w, h + 1]);
     }
-    let (iN, iW, iE, iS) = (if i < w { 0 } else { i - w }, i - 1, i + 1, i + w);
+    let lim = w * h;
+    if i >= lim {
+        i = M;
+    }
+    let (iN, iW, iE, iS) = (
+        if i < w { M } else { i - w },
+        i - 1,
+        i + 1,
+        if i >= lim { M } else { i + w },
+    );
     if i == MAX_LEN - 1 {
-        return Some([iN - 1, iN, 0, iW, 0, 0, 0, 0, 0]);
+        return Some([iN - 1, iN, M, iW, M, M, M, M, M]);
     }
     //  A N B | A=N-1 N=i-w B=N+1
     //  W   E | W=i-1       E=i+1
@@ -54,29 +64,29 @@ pub fn get_bmp_idx(x: usize, y: usize, w: usize, h: usize) -> Option<[usize; 9]>
         iN,
         iN + 1,
         iW,
-        0,
+        M,
         iE,
         iS - 1,
         iS,
         iS + 1,
     ];
     if x == 0 {
-        ls[W] = 0;
-        ls[N - 1] = 0;
-        ls[S - 1] = 0;
+        ls[W] = M;
+        ls[N - 1] = M;
+        ls[S - 1] = M;
     } else if x == w - 1 {
-        ls[E] = 0;
-        ls[N + 1] = 0;
-        ls[S + 1] = 0;
+        ls[E] = M;
+        ls[N + 1] = M;
+        ls[S + 1] = M;
     }
     if y == 0 {
-        ls[N] = 0;
-        ls[N - 1] = 0;
-        ls[N + 1] = 0;
+        ls[N] = M;
+        ls[N - 1] = M;
+        ls[N + 1] = M;
     } else if y == h - 1 {
-        ls[S] = 0;
-        ls[S - 1] = 0;
-        ls[S + 1] = 0;
+        ls[S] = M;
+        ls[S - 1] = M;
+        ls[S + 1] = M;
     }
     Some(ls)
 }
@@ -159,7 +169,7 @@ impl MineMap {
                     if self.map[i] > 8 {
                         if let Some(ls) = get_bmp_idx(x, y, w, h) {
                             for ii in ls {
-                                if ii > 0 {
+                                if ii < map_size {
                                     *self.map.get_mut(ii).unwrap() += 1;
                                 }
                             }
@@ -216,7 +226,7 @@ impl MineMap {
                 c.switch_open();
                 *v = c.0;
                 let _ = v; // drop *mut
-                // self.set_tag(x, y);
+                           // self.set_tag(x, y);
             }
         }
     }
@@ -231,7 +241,7 @@ impl MineMap {
             c.switch_flag();
             *v = c.0;
             let _ = v; // drop *mut
-            // self.set_tag(x, y);
+                       // self.set_tag(x, y);
         }
     }
 
