@@ -126,6 +126,33 @@ pub struct MineMap {
     // stat: Vec<u8>,
 }
 impl MineMap {
+    /// 导入布局和状态
+    /// # Argument
+    /// - map `[宽width, 高height, 数据data..]`
+    /// - hold_stat 是否保留状态
+    pub fn try_by(mut map: Vec<u8>, hold_stat: bool) -> Result<Self, String> {
+        if map.len() < 6 {
+            return Err("输入数据太短！[宽, 高, 数据..]".to_string());
+        }
+        let mut count = 0;
+        if hold_stat {
+            count = map.iter().skip(2).filter(|&v| v & 0x1f > 8).count() as u16;
+        } else {
+            for v in &mut map[2..] {
+                *v &= 0x1f;
+                if *v > 8 {
+                    count += 1;
+                }
+            }
+        }
+        Ok(Self {
+            map: map[2..].into(),
+            height: map[1],
+            width: map[0],
+            count,
+        })
+    }
+
     pub fn new(count: u16, width: u8, height: u8) -> Self {
         let cap = width as usize * height as usize;
         let cap = if count == 0 || cap < count as usize {
@@ -340,28 +367,19 @@ impl MineMap {
     // }
 
     /// 导出布局数据
+    /// # Argument
+    /// - `hold_stat` 是否保留状态
     /// # Returns
-    /// - 宽 width
-    /// - 高 height
-    /// - 数据 mines
-    pub fn export_map(&self) -> (u8, u8, Vec<u8>) {
-        (
-            self.width,
-            self.height,
-            self.map.iter().map(|&v| v & 0x1f).collect(),
-        )
-    }
-
-    /// 导出布局和状态数据
-    /// # Returns
-    /// - 宽 width
-    /// - 高 height
-    /// - 数据 mines + status
-    pub fn export_stat(&self) -> (u8, u8, Vec<u8>) {
-        (
-            self.width,
-            self.height,
-            self.map.iter().map(|&v| v).collect(),
-        )
+    /// - `[宽width, 高height, 数据data..]`
+    pub fn export(&self, hold_stat: bool) -> Vec<u8> {
+        let mut res = Vec::with_capacity(self.map.len() + 2);
+        res.push(self.width);
+        res.push(self.height);
+        if hold_stat {
+            res.extend(&self.map);
+        } else {
+            res.extend(self.map.iter().map(|&v| v & 0x1f));
+        }
+        res
     }
 }
