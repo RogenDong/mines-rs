@@ -13,5 +13,5 @@ smallvec = "1.11.1"
 criterion = "*"
 
 [[bench]]
-name = "mines_benchmark"
+name = "bench_shuffle"
 harness = false

@@ -37,33 +37,6 @@ pub fn get_idx(x: usize, y: usize) -> Option<usize> {
     }
 }
 
-fn ts_bmp_warn(cri: &mut Criterion) {
-    let mut rng = thread_rng();
-    let mut map = vec![123; MAX_LEN];
-    map.fill(0);
-    map[..COUNT_MINES_TS].fill(9);
-    map.shuffle(&mut rng);
-
-    cri.bench_function("bmp", |b| {
-        b.iter(|| {
-            for y in 0..HEIGHT {
-                for x in 0..WIDTH {
-                    let Some(i) = get_idx(x, y) else {continue};
-                    let w = map[i];
-                    if w > 8 {
-                        for a in Loc::from(x, y).get_around() {
-                            let (ax, ay) = (a.0 as usize, a.1 as usize);
-                            if let Some(ia) = get_idx(ax, ay) {
-                                *(map.get_mut(ia).unwrap()) += 1;
-                            }
-                        }
-                    }
-                }
-            }
-        })
-    });
-}
-
 #[allow(non_snake_case)]
 pub fn get_bmp_idx(x: usize, y: usize) -> Option<[usize; 9]> {
     const M: usize = usize::MAX - 1;
@@ -121,6 +94,7 @@ pub fn get_bmp_idx(x: usize, y: usize) -> Option<[usize; 9]> {
     }
     Some(ls)
 }
+
 fn ts_bmp_warn_by_index(cri: &mut Criterion) {
     let mut rng = thread_rng();
     let mut map = vec![123u8; MAX_LEN];
@@ -132,17 +106,18 @@ fn ts_bmp_warn_by_index(cri: &mut Criterion) {
         b.iter(|| {
             for y in 0..HEIGHT {
                 for x in 0..WIDTH {
-                    if let Some(i) = get_idx(x, y) {
-                        if map[i] > 8 {
-                            if let Some(ls) = get_bmp_idx(x, y) {
-                                for ii in ls {
-                                    if ii < MAX_LEN {
-                                        *map.get_mut(ii).unwrap() += 1;
-                                    }
-                                }
-                            } // get around
-                        } // found mine
-                    } // get index
+                    if map.get(get_idx(x, y).unwrap()).map_or(0, |&c| c) < 9 {
+                        continue;
+                    }
+                    // get around
+                    let Some(ls) = get_bmp_idx(x, y) else {
+                        continue;
+                    };
+                    for i in ls {
+                        if i < MAX_LEN {
+                            map[i] += 1;
+                        }
+                    }
                 } // loop column
             } // loop row
         })
@@ -168,9 +143,8 @@ fn ts_emp_area(cri: &mut Criterion) {
 
 criterion_group!(
     benches,
-    ts_fill,
-    ts_random_shuffle,
-    ts_bmp_warn,
+    // ts_fill,
+    // ts_random_shuffle,
     ts_bmp_warn_by_index,
     // ts_mines_shuffle
 );
