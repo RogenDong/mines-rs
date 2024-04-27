@@ -130,7 +130,7 @@ impl MineMap {
     /// # Argument
     /// - map `[宽width, 高height, 数据data..]`
     /// - hold_stat 是否保留状态
-    pub fn try_by(mut map: Vec<u8>, hold_stat: bool) -> Result<Self, String> {
+    pub fn by(mut map: Vec<u8>, hold_stat: bool) -> Result<Self, String> {
         if map.len() < 6 {
             return Err("输入数据太短！[宽, 高, 数据..]".to_string());
         }
@@ -153,20 +153,24 @@ impl MineMap {
         })
     }
 
-    pub fn new(count: u16, width: u8, height: u8) -> Self {
+    pub fn new(count: u16, width: u8, height: u8) -> Result<Self, String> {
+        if width < 2 || height < 2 {
+            return Err("请设置更大的区域！".to_string());
+        }
+        if count < 1 {
+            return Err("请设置更多地雷！".to_string());
+        }
         let cap = width as usize * height as usize;
-        let cap = if count == 0 || cap < count as usize {
-            0
-        } else {
-            cap
-        };
-        Self {
+        if count as usize >= cap {
+            return Err("请减少地雷数量！".to_string());
+        }
+        Ok(Self {
             count,
             width,
             height,
             map: vec![0; cap],
             // stat: vec![0; MAX_LEN_STAT],
-        }
+        })
     }
 
     #[inline]
