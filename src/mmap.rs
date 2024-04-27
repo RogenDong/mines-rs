@@ -1,7 +1,6 @@
 use crate::{cell::Cell, location::Loc};
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
-use smallvec::SmallVec;
 
 // const MAX_LEN: usize = 255 * 255;
 // const MAX_LEN_STAT: usize = MAX_LEN / 8;
@@ -163,30 +162,8 @@ impl MineMap {
         self.get(x as usize, y as usize)
     }
 
-    /// 设置安全区
-    fn ignore_area(&mut self, area: SmallVec<[Loc; 8]>) {
-        let mut rng = thread_rng();
-        for &Loc(a, b) in area.iter() {
-            match self.get_mut(a as usize, b as usize) {
-                Some(c @ 9) => *c = 0,
-                _ => continue,
-            }
-            loop {
-                let x = rng.gen_range(0..self.width);
-                let y = rng.gen_range(0..self.height);
-                if area.iter().any(|&Loc(a, b)| a == x && b == y) {
-                    continue;
-                }
-                if let Some(c @ 0) = self.get_mut(x as usize, y as usize) {
-                    *c = 9;
-                    break;
-                }
-            }
-        }
-    }
-
     /// 刷新地雷
-    pub fn shuffle(&mut self, ignore: Option<Loc>) {
+    fn shuffle(&mut self) {
         let (w, h, c) = (
             self.width as usize,
             self.height as usize,
@@ -202,20 +179,47 @@ impl MineMap {
         // 用洗牌算法布置地雷
         let mut rng = thread_rng();
         self.map.shuffle(&mut rng);
+        // TODO: 在结束前对洗牌结果添加一些评判
+    }
+
+    pub fn new_game(&mut self, ignore: Option<Loc>) {
+        self.shuffle();
         // 设置安全区
         if let Some(c) = ignore {
-            self.ignore_area(c.get_around());
+            let mut rng = thread_rng();
+            let area = c.get_around();
+            for &l in area.iter() {
+                match self.get_mut(l.0 as usize, l.1 as usize) {
+                    Some(c @ 9) => *c = 0,
+                    _ => continue,
+                }
+                loop {
+                    let x = rng.gen_range(0..self.width);
+                    let y = rng.gen_range(0..self.height);
+                    if area.iter().any(|&Loc(a, b)| a == x && b == y) {
+                        continue;
+                    }
+                    if let Some(c @ 0) = self.get_mut(x as usize, y as usize) {
+                        *c = 9;
+                        break;
+                    }
+                }
+            }
         }
-        // 设置地雷数值
+        // 设置地雷警示数值
+        let (w, h) = (self.width as usize, self.height as usize);
+        let size = w * h;
         for y in 0..h {
             for x in 0..w {
                 if self.get(x, y).map_or(0, |c| c.0) < 9 {
                     continue;
                 }
                 // get around
-                let Some(ls) = get_bmp_idx(x, y, w, h) else { continue };
+                let Some(ls) = get_bmp_idx(x, y, w, h) else {
+                    continue;
+                };
                 for i in ls {
-                    if i < map_size {
+                    if i < size {
                         self.map[i] += 1;
                     }
                 }

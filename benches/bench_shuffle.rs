@@ -132,7 +132,7 @@ fn ts_bmp_warn_by_index(cri: &mut Criterion) {
 fn ts_emp_area(cri: &mut Criterion) {
     let mut rng = thread_rng();
     let mut mines = MineMap::new(160, 20, 10);
-    mines.shuffle(None);
+    mines.new_game(None);
     todo!()
     // cri.bench_function("emp", |b| b.iter(|| {
     //     for _ in 0..3 {
