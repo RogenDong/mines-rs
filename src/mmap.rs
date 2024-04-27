@@ -227,6 +227,13 @@ impl MineMap {
         }
     }
 
+    /// 重置进度：清除开关、标记状态
+    pub fn reset_progress(&mut self) {
+        for v in self.map.iter_mut() {
+            *v &= 0x1f;
+        }
+    }
+
     pub fn format_str(&self) -> String {
         let (w, h) = (self.width as usize, self.height as usize);
         let mut buf = String::with_capacity(w * 2 * h + h);
@@ -331,4 +338,30 @@ impl MineMap {
     //     }
     //     Ok(all)
     // }
+
+    /// 导出布局数据
+    /// # Returns
+    /// - 宽 width
+    /// - 高 height
+    /// - 数据 mines
+    pub fn export_map(&self) -> (u8, u8, Vec<u8>) {
+        (
+            self.width,
+            self.height,
+            self.map.iter().map(|&v| v & 0x1f).collect(),
+        )
+    }
+
+    /// 导出布局和状态数据
+    /// # Returns
+    /// - 宽 width
+    /// - 高 height
+    /// - 数据 mines + status
+    pub fn export_stat(&self) -> (u8, u8, Vec<u8>) {
+        (
+            self.width,
+            self.height,
+            self.map.iter().map(|&v| v).collect(),
+        )
+    }
 }
