@@ -34,12 +34,12 @@ pub fn get_idx(x: usize, y: usize, w: usize, h: usize) -> Option<usize> {
     }
 }
 
-/// 基于长宽和二维坐标检查周围单位，收集并返回需要自增的位置
+/// 基于长宽和二维坐标收集并返回周围单位的下标
 /// # Return
 /// - 需要自增的位置是有效下标
 /// - 不自增的位置用大于地图最大长度的值表示
 #[allow(non_snake_case)]
-pub fn get_bmp_idx(x: usize, y: usize, w: usize, h: usize) -> Option<[usize; 9]> {
+pub fn get_around_index(x: usize, y: usize, w: usize, h: usize) -> Option<[usize; 9]> {
     // “不自增”标记值--用较大数值表示；减1是为了方便后续处理
     const M: usize = usize::MAX - 1;
     // 获取中间单位的下标
@@ -83,9 +83,17 @@ pub fn get_bmp_idx(x: usize, y: usize, w: usize, h: usize) -> Option<[usize; 9]>
         iS,
         iS + 1,
     ];
-    let (A, N, B) = (0, 1, 2);
-    let (W, E) = (3, 5);
-    let (C, S, D) = (6, 7, 8);
+    // (A, N, B) = (0, 1, 2)
+    const A: usize = 0;
+    const N: usize = 1;
+    const B: usize = 2;
+    // (W, E) = (3, 5)
+    const W: usize = 3;
+    const E: usize = 5;
+    // (C, S, D) = (6, 7, 8)
+    const C: usize = 6;
+    const S: usize = 7;
+    const D: usize = 8;
     if x == 0 {
         // N B
         //   E
@@ -219,7 +227,7 @@ impl MineMap {
         if let Some(c) = ignore {
             let mut rng = thread_rng();
             let area = c.get_around();
-            for &l in area.iter() {
+            for &l in &area {
                 match self.get_mut(l.0 as usize, l.1 as usize) {
                     Some(c @ 9) => *c = 0,
                     _ => continue,
@@ -246,7 +254,7 @@ impl MineMap {
                     continue;
                 }
                 // get around
-                let Some(ls) = get_bmp_idx(x, y, w, h) else {
+                let Some(ls) = get_around_index(x, y, w, h) else {
                     continue;
                 };
                 for i in ls {
@@ -328,47 +336,6 @@ impl MineMap {
     pub fn switch_flag_by_loc(&mut self, Loc(x, y): Loc) {
         self.switch_flag(x as usize, y as usize)
     }
-
-    // pub fn get_nearby_empty_area(&self, x: usize, y: usize) -> Result<Vec<Loc>, ()> {
-    //     let (w, h) = (self.width as usize, self.height as usize);
-    //     if x >= w || y >= h {
-    //         return Err(());
-    //     }
-    //     let start_pos = Loc(x as u8, y as u8);
-    //     let start_idx = self.get_index_by_loc(start_pos).ok_or_else(|| ())?;
-    //
-    //     let mut stat = self.stat.clone();
-    //     let cap = (w + h) * 2 - 4;
-    //     let mut all = Vec::with_capacity(w * h);
-    //     let mut next = Vec::with_capacity(cap);
-    //     let mut current = Vec::with_capacity(cap);
-    //
-    //     // tag start location
-    //     if !is_tag(&stat, start_idx) {
-    //         set_tag(&mut stat, start_idx);
-    //         all.push(start_pos);
-    //     }
-    //     current.push(start_pos);
-    //
-    //     // 递归扩散，遍历所有相邻单位 TODO 死循环，待修
-    //     while !current.is_empty() {
-    //         for p in &current {
-    //             for a in p.get_around() {
-    //                 if let Some(f) = self.get_index_by_loc(a) {
-    //                     if is_tag(&stat, f) {
-    //                         continue;
-    //                     }
-    //                     all.push(a);
-    //                     next.push(a);
-    //                     set_tag(&mut stat, f);
-    //                 }
-    //             }
-    //         }
-    //         current.clear();
-    //         current.append(&mut next);
-    //     }
-    //     Ok(all)
-    // }
 
     /// 导出布局数据
     /// # Argument
