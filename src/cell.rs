@@ -20,6 +20,11 @@ impl Cell {
     }
 
     #[inline]
+    pub fn is_open_raw(v: u8) -> bool {
+        v & BIT_OPEN > 0
+    }
+
+    #[inline]
     pub fn is_open(&self) -> bool {
         self.0 & BIT_OPEN > 0
     }
@@ -48,6 +53,16 @@ impl Cell {
         } else if v > 0 {
             self.0 -= 1;
         }
+    }
+
+    #[inline]
+    pub fn switch_open_raw(v: &mut u8) {
+        *v ^= BIT_OPEN
+    }
+
+    #[inline]
+    pub fn switch_flag_raw(v: &mut u8) {
+        *v ^= BIT_FLAG
     }
 
     #[inline]
