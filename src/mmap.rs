@@ -1,8 +1,9 @@
 use crate::{cell::Cell, location::Loc};
 use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::{thread_rng, Rng};
+use smallvec::SmallVec;
 
-const MAX_LEN: usize = 255 * 255;
+// const MAX_LEN: usize = 255 * 255;
 // const MAX_LEN_STAT: usize = MAX_LEN / 8;
 
 // fn is_tag(map: &Vec<u8>, f: usize) -> bool {
@@ -14,7 +15,7 @@ const MAX_LEN: usize = 255 * 255;
 //         false
 //     }
 // }
-//
+
 // fn set_tag(map: &mut Vec<u8>, f: usize) {
 //     if f == 0 {
 //         map[0] |= 1;
@@ -23,6 +24,8 @@ const MAX_LEN: usize = 255 * 255;
 //     }
 // }
 
+/// 基于长宽和二维坐标换算得到下标
+/// * 地雷、数量等信息存储在简单数组中
 #[inline]
 pub fn get_idx(x: usize, y: usize, w: usize, h: usize) -> Option<usize> {
     if x < w && y < h {
@@ -32,33 +35,44 @@ pub fn get_idx(x: usize, y: usize, w: usize, h: usize) -> Option<usize> {
     }
 }
 
+/// 基于长宽和二维坐标检查周围单位，收集并返回需要自增的位置
+/// # Return
+/// - 需要自增的位置是有效下标
+/// - 不自增的位置用大于地图最大长度的值表示
 #[allow(non_snake_case)]
 pub fn get_bmp_idx(x: usize, y: usize, w: usize, h: usize) -> Option<[usize; 9]> {
+    // “不自增”标记值--用较大数值表示；减1是为了方便后续处理
     const M: usize = usize::MAX - 1;
-    let mut i = get_idx(x, y, w, h)?;
+    // 获取中间单位的下标
+    let i = get_idx(x, y, w, h)?;
     if i == 0 {
-        return Some([M, M, M, M, M, 1, M, w, h + 1]);
+        // - - -
+        // - + E
+        // - S D
+        return Some([M, M, M, M, M, 1, M, w, w + 1]);
     }
     let lim = w * h;
     if i >= lim {
-        i = M;
+        return None;
     }
+    // 周围单位的下标
     let (iN, iW, iE, iS) = (
-        if i < w { M } else { i - w },
-        i - 1,
-        i + 1,
-        if i >= lim { M } else { i + w },
+        if y == 0 { M } else { i - w },
+        if x == 0 { M } else { i - 1 },
+        if x == w - 1 { M } else { i + 1 },
+        if y == h - 1 { M } else { i + w },
     );
-    if i == MAX_LEN - 1 {
+    // 中心单位在末尾的时候直接返回
+    if i == lim - 1 {
+        // A N -
+        // W + -
+        // - - -
         return Some([iN - 1, iN, M, iW, M, M, M, M, M]);
     }
-    //  A N B | A=N-1 N=i-w B=N+1
-    //  W   E | W=i-1       E=i+1
-    //  C S D | C=S-1 S=i+w D=S+1
-    const N: usize = 1;
-    const W: usize = 3;
-    const E: usize = 5;
-    const S: usize = 7;
+    // 初始化下标集合
+    // A=N-1  N=i-w  B=N+1
+    // W=i-1         E=i+1
+    // C=S-1  S=i+w  D=S+1
     let mut ls = [
         if iN == 0 { 0 } else { iN - 1 },
         iN,
@@ -70,23 +84,36 @@ pub fn get_bmp_idx(x: usize, y: usize, w: usize, h: usize) -> Option<[usize; 9]>
         iS,
         iS + 1,
     ];
+    let (A, N, B) = (0, 1, 2);
+    let (W, E) = (3, 5);
+    let (C, S, D) = (6, 7, 8);
     if x == 0 {
+        // N B
+        //   E
+        // S D
         ls[W] = M;
-        ls[N - 1] = M;
-        ls[S - 1] = M;
+        ls[A] = M;
+        ls[C] = M;
     } else if x == w - 1 {
+        // A N
+        // W
+        // C S
         ls[E] = M;
-        ls[N + 1] = M;
-        ls[S + 1] = M;
+        ls[B] = M;
+        ls[D] = M;
     }
     if y == 0 {
+        // W   E
+        // C S D
         ls[N] = M;
-        ls[N - 1] = M;
-        ls[N + 1] = M;
+        ls[A] = M;
+        ls[B] = M;
     } else if y == h - 1 {
+        // A N B
+        // W   E
         ls[S] = M;
-        ls[S - 1] = M;
-        ls[S + 1] = M;
+        ls[C] = M;
+        ls[D] = M;
     }
     Some(ls)
 }
@@ -99,7 +126,6 @@ pub struct MineMap {
     pub map: Vec<u8>,
     // stat: Vec<u8>,
 }
-
 impl MineMap {
     pub fn new(count: u16, width: u8, height: u8) -> Self {
         let cap = width as usize * height as usize;
@@ -137,7 +163,29 @@ impl MineMap {
         self.get(x as usize, y as usize)
     }
 
-    // 刷新地雷
+    /// 设置安全区
+    fn ignore_area(&mut self, area: SmallVec<[Loc; 8]>) {
+        let mut rng = thread_rng();
+        for &Loc(a, b) in area.iter() {
+            match self.get_mut(a as usize, b as usize) {
+                Some(c @ 9) => *c = 0,
+                _ => continue,
+            }
+            loop {
+                let x = rng.gen_range(0..self.width);
+                let y = rng.gen_range(0..self.height);
+                if area.iter().any(|&Loc(a, b)| a == x && b == y) {
+                    continue;
+                }
+                if let Some(c @ 0) = self.get_mut(x as usize, y as usize) {
+                    *c = 9;
+                    break;
+                }
+            }
+        }
+    }
+
+    /// 刷新地雷
     pub fn shuffle(&mut self, ignore: Option<Loc>) {
         let (w, h, c) = (
             self.width as usize,
@@ -153,31 +201,26 @@ impl MineMap {
         self.map[..c].fill(9);
         // 用洗牌算法布置地雷
         let mut rng = thread_rng();
-        loop {
-            self.map.shuffle(&mut rng);
-            if let Some(c) = ignore.and_then(|l| self.get_by_loc(l)) {
-                if !c.is_mine() {
-                    break;
-                }
-            } else {
-                break;
-            }
+        self.map.shuffle(&mut rng);
+        // 设置安全区
+        if let Some(c) = ignore {
+            self.ignore_area(c.get_around());
         }
+        // 设置地雷数值
         for y in 0..h {
             for x in 0..w {
-                if let Some(i) = get_idx(x, y, w, h) {
-                    if self.map[i] > 8 {
-                        if let Some(ls) = get_bmp_idx(x, y, w, h) {
-                            for ii in ls {
-                                if ii < map_size {
-                                    *self.map.get_mut(ii).unwrap() += 1;
-                                }
-                            }
-                        } // get around
-                    } // found mine
-                } // get index
-            } // loop column
-        } // loop row
+                if self.get(x, y).map_or(0, |c| c.0) < 9 {
+                    continue;
+                }
+                // get around
+                let Some(ls) = get_bmp_idx(x, y, w, h) else { continue };
+                for i in ls {
+                    if i < map_size {
+                        self.map[i] += 1;
+                    }
+                }
+            }
+        }
     }
 
     pub fn format_str(&self) -> String {
@@ -221,12 +264,10 @@ impl MineMap {
 
     pub fn open(&mut self, x: usize, y: usize) {
         if let Some(v) = self.get_mut(x, y) {
-            let mut c = Cell(*v);
-            if !c.is_open() {
-                c.switch_open();
-                *v = c.0;
-                let _ = v; // drop *mut
-                           // self.set_tag(x, y);
+            // let mut c = Cell(*v);
+            if !Cell::is_open_raw(*v) {
+                Cell::switch_open_raw(v);
+                // self.set_tag(x, y);
             }
         }
     }
@@ -237,11 +278,8 @@ impl MineMap {
 
     pub fn switch_flag(&mut self, x: usize, y: usize) {
         if let Some(v) = self.get_mut(x, y) {
-            let mut c = Cell(*v);
-            c.switch_flag();
-            *v = c.0;
-            let _ = v; // drop *mut
-                       // self.set_tag(x, y);
+            Cell::switch_flag_raw(v);
+            // self.set_tag(x, y);
         }
     }
 
