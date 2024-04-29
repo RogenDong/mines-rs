@@ -26,7 +26,7 @@ use rand::{thread_rng, Rng};
 /// 基于长宽和二维坐标换算得到下标
 /// * 地雷、数量等信息存储在简单数组中
 #[inline]
-pub fn get_idx(x: usize, y: usize, w: usize, h: usize) -> Option<usize> {
+fn loc_to_idx(x: usize, y: usize, w: usize, h: usize) -> Option<usize> {
     if x < w && y < h {
         Some(y * w + x)
     } else {
@@ -34,95 +34,68 @@ pub fn get_idx(x: usize, y: usize, w: usize, h: usize) -> Option<usize> {
     }
 }
 
+/// 下标转坐标
+fn idx_to_loc(i: usize, w: usize, h: usize) -> Option<(usize, usize)> {
+    let s = w * h;
+    if i >= s {
+        return None;
+    }
+    Some(if i == 0 {
+        (0, 0)
+    } else if i == w {
+        (0, 1)
+    } else if i < w {
+        (i, 0)
+    } else if i == s - 1 {
+        (w - 1, h - 1)
+    } else {
+        let x = i % w;
+        (x, (i - x) / w)
+    })
+}
+
 /// 基于长宽和二维坐标收集并返回周围单位的下标
 /// # Return
 /// - 需要自增的位置是有效下标
 /// - 不自增的位置用大于地图最大长度的值表示
-#[allow(non_snake_case)]
-pub fn get_around_index(x: usize, y: usize, w: usize, h: usize) -> Option<[usize; 9]> {
-    // “不自增”标记值--用较大数值表示；减1是为了方便后续处理
-    const M: usize = usize::MAX - 1;
-    // 获取中间单位的下标
-    let i = get_idx(x, y, w, h)?;
-    if i == 0 {
-        // - - -
-        // - + E
-        // - S D
-        return Some([M, M, M, M, M, 1, M, w, w + 1]);
-    }
-    let lim = w * h;
-    if i >= lim {
+fn get_around_index(i: usize, w: usize, h: usize) -> Option<[usize; 8]> {
+    let size = w * h;
+    if i >= size {
         return None;
     }
-    // 周围单位的下标
-    let (iN, iW, iE, iS) = (
-        if y == 0 { M } else { i - w },
-        if x == 0 { M } else { i - 1 },
-        if x == w - 1 { M } else { i + 1 },
-        if y == h - 1 { M } else { i + w },
+    // 表示无效下标。减1是为了后续增减操作不发生溢出。
+    const M: usize = usize::MAX - 1;
+    // 周围一圈下标在集合中的顺序
+    // D,N,A = 7,0,1
+    // W,_,E = 6,_,2
+    // C,S,B = 5,4,3
+    if i == 0 {
+        // 左上=[_,_,E,B,S,..]
+        return Some([M, M, i + 1, (i + w + 1), (i + w), M, M, M]);
+    }
+    if i == size - 1 {
+        // 右下=[N,..,W,D]
+        return Some([(i - w), M, M, M, M, M, (i - 1), (i - w - 1)]);
+    }
+    let (x, y) = idx_to_loc(i, w, h).unwrap();
+    // 根据x,y是否贴边计算四周下标偏移
+    #[allow(non_snake_case)]
+    let (WI, NI, EI, SI) = (
+        if x > 0 { i - 1 } else { M },
+        if y > 0 { i - w } else { M },
+        if x < w - 1 { i + 1 } else { M },
+        if y < h - 1 { i + w } else { M },
     );
-    // 中心单位在末尾的时候直接返回
-    if i == lim - 1 {
-        // A N -
-        // W + -
-        // - - -
-        return Some([iN - 1, iN, M, iW, M, M, M, M, M]);
+    if WI == M {
+        // 表示当前贴左边，偏移=[N,A,E,B,S,..]
+        Some([NI, (NI + 1), EI, (SI + 1), SI, M, M, M])
+    } else if EI == M {
+        // 表示当前贴右边，偏移=[N,..,S,C,W,D]
+        Some([NI, M, M, M, SI, (SI - 1), WI, (NI - 1)])
+    } else {
+        // A,D的偏移可以通过N+-1获得；B,C的偏移同理。
+        Some([NI, (NI + 1), EI, (SI + 1), SI, (SI - 1), WI, (NI - 1)])
     }
-    // 初始化下标集合
-    // A=N-1  N=i-w  B=N+1
-    // W=i-1         E=i+1
-    // C=S-1  S=i+w  D=S+1
-    let mut ls = [
-        if iN == 0 { 0 } else { iN - 1 },
-        iN,
-        iN + 1,
-        iW,
-        M,
-        iE,
-        iS - 1,
-        iS,
-        iS + 1,
-    ];
-    // (A, N, B) = (0, 1, 2)
-    const A: usize = 0;
-    const N: usize = 1;
-    const B: usize = 2;
-    // (W, E) = (3, 5)
-    const W: usize = 3;
-    const E: usize = 5;
-    // (C, S, D) = (6, 7, 8)
-    const C: usize = 6;
-    const S: usize = 7;
-    const D: usize = 8;
-    if x == 0 {
-        // N B
-        //   E
-        // S D
-        ls[W] = M;
-        ls[A] = M;
-        ls[C] = M;
-    } else if x == w - 1 {
-        // A N
-        // W
-        // C S
-        ls[E] = M;
-        ls[B] = M;
-        ls[D] = M;
-    }
-    if y == 0 {
-        // W   E
-        // C S D
-        ls[N] = M;
-        ls[A] = M;
-        ls[B] = M;
-    } else if y == h - 1 {
-        // A N B
-        // W   E
-        ls[S] = M;
-        ls[C] = M;
-        ls[D] = M;
-    }
-    Some(ls)
 }
 
 pub struct MineMap {
@@ -182,18 +155,13 @@ impl MineMap {
     }
 
     #[inline]
-    fn get_idx(&self, x: usize, y: usize) -> Option<usize> {
-        get_idx(x, y, self.width as usize, self.height as usize)
-    }
-
-    // #[inline]
-    // fn get_index_by_loc(&self, Loc(x, y): Loc) -> Option<usize> {
-    //     self.get_idx(x as usize, y as usize)
-    // }
-
-    #[inline]
     pub fn get(&self, x: usize, y: usize) -> Option<Cell> {
-        Some(Cell(*self.map.get(self.get_idx(x, y)?)?))
+        Some(Cell(*self.map.get(loc_to_idx(
+            x,
+            y,
+            self.width as usize,
+            self.height as usize,
+        )?)?))
     }
 
     #[inline]
@@ -221,46 +189,59 @@ impl MineMap {
         // TODO: 在结束前对洗牌结果添加一些评判
     }
 
-    pub fn new_game(&mut self, ignore: Option<Loc>) {
-        self.shuffle();
-        // 设置安全区
-        if let Some(c) = ignore {
-            let mut rng = thread_rng();
-            let area = c.get_around();
-            for &l in &area {
-                match self.get_mut(l.0 as usize, l.1 as usize) {
-                    Some(c @ 9) => *c = 0,
-                    _ => continue,
-                }
-                loop {
-                    let x = rng.gen_range(0..self.width);
-                    let y = rng.gen_range(0..self.height);
-                    if area.iter().any(|&Loc(a, b)| a == x && b == y) {
-                        continue;
-                    }
-                    if let Some(c @ 0) = self.get_mut(x as usize, y as usize) {
+    /// 设置安全区
+    fn ignore_area(&mut self, ignore: Option<Loc>) {
+        let Some(c) = ignore else { return };
+        let (x, y, w, h) = (
+            c.0 as usize,
+            c.1 as usize,
+            self.width as usize,
+            self.height as usize,
+        );
+        let Some(c) = loc_to_idx(x, y, w, h) else {
+            return;
+        };
+        self.map[c] = 0;
+        let mut rng = thread_rng();
+        let Some(area) = get_around_index(c, w, h) else {
+            return;
+        };
+        let size = w * h;
+        for &a in &area {
+            match self.map.get_mut(a) {
+                Some(c @ 9) => *c = 0,
+                _ => continue,
+            }
+            loop {
+                let i = rng.gen_range(0..size);
+                if !area.contains(&i) {
+                    if let Some(c @ 0) = self.map.get_mut(i) {
                         *c = 9;
                         break;
                     }
                 }
             }
         }
+    }
+
+    pub fn new_game(&mut self, ignore: Option<Loc>) {
+        self.shuffle();
+        // 设置安全区
+        self.ignore_area(ignore);
         // 设置地雷警示数值
         let (w, h) = (self.width as usize, self.height as usize);
         let size = w * h;
-        for y in 0..h {
-            for x in 0..w {
-                if self.get(x, y).map_or(0, |c| c.0) < 9 {
-                    continue;
-                }
-                // get around
-                let Some(ls) = get_around_index(x, y, w, h) else {
-                    continue;
-                };
-                for i in ls {
-                    if i < size {
-                        self.map[i] += 1;
-                    }
+        for i in 0..size {
+            if self.map[i] < 9 {
+                continue;
+            }
+            // get around
+            let Some(ls) = get_around_index(i, w, h) else {
+                continue;
+            };
+            for a in ls {
+                if a < size {
+                    self.map[a] += 1;
                 }
             }
         }
@@ -275,50 +256,34 @@ impl MineMap {
 
     pub fn format_str(&self) -> String {
         let (w, h) = (self.width as usize, self.height as usize);
-        let mut buf = String::with_capacity(w * 2 * h + h);
+        let size = w * h;
+        let mut buf = String::with_capacity(size * 2 + h);
         use std::fmt::Write;
-        for y in 0..h {
-            for x in 0..w {
-                if let Some(c) = self.get(x, y) {
-                    if c.is_mine() {
-                        buf.push_str(" +");
-                        continue;
-                    }
-                    match c.get_warn() {
-                        0 => buf.push_str("  "),
-                        w => write!(buf, " {w}").unwrap(),
-                    }
-                }
+        let mut ln = 0;
+        for i in 0..size {
+            match Cell(self.map[i]).get_warn() {
+                0 => buf.push_str("  "),
+                v @ 1..=8 => write!(buf, " {v}").unwrap(),
+                _ => buf.push_str(" ·"),
             }
-            buf.push('\n');
+            if ln < w - 1 {
+                ln += 1;
+            } else {
+                buf.push('\n');
+                ln = 0;
+            }
         }
         buf
     }
 
-    // private
-    #[inline]
-    fn get_mut(&mut self, x: usize, y: usize) -> Option<&mut u8> {
-        let w = self.width as usize;
-        if x < w && y < self.height as usize {
-            Some(self.map.get_mut(y * w + x)?)
-        } else {
-            None
-        }
-    }
-
-    // fn set_tag(&mut self, x: usize, y: usize) {
-    //     if let Some(f) = self.get_idx(x, y) {
-    //         set_tag(&mut self.stat, f);
-    //     }
-    // }
-
     pub fn open(&mut self, x: usize, y: usize) {
-        if let Some(v) = self.get_mut(x, y) {
-            // let mut c = Cell(*v);
-            if !Cell::is_open_raw(*v) {
-                Cell::switch_open_raw(v);
-                // self.set_tag(x, y);
-            }
+        let Some(i) = loc_to_idx(x, y, self.width as usize, self.height as usize) else {
+            return;
+        };
+        let mut c = Cell(self.map[i]);
+        if !c.is_open() {
+            c.switch_open();
+            self.map[i] = c.0;
         }
     }
 
@@ -327,10 +292,12 @@ impl MineMap {
     }
 
     pub fn switch_flag(&mut self, x: usize, y: usize) {
-        if let Some(v) = self.get_mut(x, y) {
-            Cell::switch_flag_raw(v);
-            // self.set_tag(x, y);
-        }
+        let Some(i) = loc_to_idx(x, y, self.width as usize, self.height as usize) else {
+            return;
+        };
+        let mut c = Cell(self.map[i]);
+        c.switch_flag();
+        self.map[i] = c.0;
     }
 
     pub fn switch_flag_by_loc(&mut self, Loc(x, y): Loc) {
