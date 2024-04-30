@@ -1,5 +1,5 @@
 // 位标识：是否打开
-const BIT_OPEN: u8 = 0x80;
+pub const BIT_OPEN: u8 = 0x80;
 // 位标识：是否插旗
 const BIT_FLAG: u8 = 0x40;
 // 位标识：周围地雷数
@@ -17,11 +17,6 @@ impl Cell {
     #[inline]
     pub fn get_warn(&self) -> u8 {
         self.0 & BIT_WARN
-    }
-
-    #[inline]
-    pub fn is_open_raw(v: u8) -> bool {
-        v > BIT_OPEN
     }
 
     #[inline]
@@ -56,13 +51,13 @@ impl Cell {
     }
 
     #[inline]
-    pub fn switch_open_raw(v: &mut u8) {
-        *v ^= BIT_OPEN
+    pub fn open(&mut self) {
+        self.0 |= BIT_OPEN
     }
 
     #[inline]
-    pub fn switch_flag_raw(v: &mut u8) {
-        *v ^= BIT_FLAG
+    pub fn flag(&mut self) {
+        self.0 |= BIT_FLAG
     }
 
     #[inline]

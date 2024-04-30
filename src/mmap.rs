@@ -249,15 +249,100 @@ impl MineMap {
         buf
     }
 
+    /// 找到空白区域
+    fn uncover_empty_region(&self, i: usize) -> Vec<usize> {
+        let (w, h, size) = self.my_size();
+        // 结果集
+        let mut result = Vec::with_capacity(size - 2);
+        // 本轮待检查的下标集
+        let mut current = Vec::with_capacity(size - 2);
+        // 暂存下一轮数据
+        let mut next = Vec::with_capacity(size - 2);
+        // 已访问的下标
+        let mut vis = Vec::with_capacity(size - 2);
+        // 起点直接加入结果集、已访集
+        vis.push(i);
+        result.push(i);
+        // 获取起点周围的下标，作为首轮待检查下标
+        current.extend(get_around_index(i, w, h).into_iter().filter(|a| *a < size));
+
+        // 层层递推检查下标，找到所有可连接的空白。
+        loop {
+            for &i in &current {
+                if vis.contains(&i) {
+                    continue;
+                }
+                vis.push(i);
+                let v = self.map[i];
+                if v > 0 {
+                    // 遇到数字时该下标收集入结果集，不寻找其周围下标。
+                    if v < 9 {
+                        result.push(i);
+                    }
+                    continue;
+                }
+                next.extend(
+                    get_around_index(i, w, h)
+                        .into_iter()
+                        .filter(|a| *a < size && !vis.contains(a)),
+                );
+                result.push(i);
+            }
+            // next为空集则结束递推。
+            if next.is_empty() {
+                break;
+            }
+            // 暂存每层收集到的待检下标，本轮结束时next导入到current。
+            current.clear();
+            current.append(&mut next);
+        }
+        result
+    }
+
+    /// 打开一片区域
+    fn open_region(&mut self, i: usize) {
+        let region = self.uncover_empty_region(i);
+        for i in region {
+            self.map[i] |= crate::cell::BIT_OPEN;
+        }
+        // TODO: 打开后需要反馈
+    }
+
+    /// 打开周围一圈
+    pub fn open_around(&mut self, x: usize, y: usize) {
+        let (w, h) = (self.width as usize, self.height as usize);
+        let Some(i) = loc_to_idx(x, y, w, h) else {
+            return;
+        };
+        let c = Cell(self.map[i]);
+        if c.is_flag() {
+            return;
+        }
+        for a in get_around_index(i, w, h) {
+            let mut c = Cell(self.map[a]);
+            if c.is_empty() {
+                return self.open_region(i);
+            }
+            if !c.is_flag() {
+                c.open();
+                self.map[a] = c.0;
+            }
+        }
+    }
+
     pub fn open(&mut self, x: usize, y: usize) {
         let Some(i) = loc_to_idx(x, y, self.width as usize, self.height as usize) else {
             return;
         };
         let mut c = Cell(self.map[i]);
-        if !c.is_open() {
-            c.switch_open();
-            self.map[i] = c.0;
+        if c.is_flag() {
+            return;
         }
+        if c.is_empty() {
+            return self.open_region(i);
+        }
+        c.switch_open();
+        self.map[i] = c.0;
     }
 
     pub fn open_by_loc(&mut self, Loc(x, y): Loc) {
