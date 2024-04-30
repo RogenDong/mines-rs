@@ -140,6 +140,13 @@ impl MineMap {
     }
 
     #[inline]
+    fn my_size(&self) -> (usize, usize, usize) {
+        let h = self.height as usize;
+        let w = self.width as usize;
+        (w, h, w * h)
+    }
+
+    #[inline]
     pub fn get(&self, x: usize, y: usize) -> Option<Cell> {
         Some(Cell(*self.map.get(loc_to_idx(
             x,
@@ -156,13 +163,9 @@ impl MineMap {
 
     /// 刷新地雷
     fn shuffle(&mut self) {
-        let (w, h, c) = (
-            self.width as usize,
-            self.height as usize,
-            self.count as usize,
-        );
-        let map_size = w * h;
-        if c == 0 || map_size < c {
+        let size = self.width as usize * self.height as usize;
+        let c = self.count as usize;
+        if c == 0 || size < c {
             return;
         }
         // self.stat.fill(0);
@@ -177,17 +180,11 @@ impl MineMap {
     /// 设置安全区
     fn ignore_area(&mut self, ignore: Option<Loc>) {
         let Some(c) = ignore else { return };
-        let (x, y, w, h) = (
-            c.0 as usize,
-            c.1 as usize,
-            self.width as usize,
-            self.height as usize,
-        );
+        let (x, y, (w, h, size)) = (c.0 as usize, c.1 as usize, self.my_size());
         let Some(c) = loc_to_idx(x, y, w, h) else {
             return;
         };
         self.map[c] = 0;
-        let size = w * h;
         let mut rng = thread_rng();
         let area = get_around_index(c, w, h);
         for &a in &area {
@@ -210,8 +207,7 @@ impl MineMap {
         // 设置安全区
         self.ignore_area(ignore);
         // 设置地雷警示数值
-        let (w, h) = (self.width as usize, self.height as usize);
-        let size = w * h;
+        let (w, h, size) = self.my_size();
         for i in 0..size {
             if self.map[i] < 9 {
                 continue;
@@ -233,8 +229,7 @@ impl MineMap {
     }
 
     pub fn format_str(&self) -> String {
-        let (w, h) = (self.width as usize, self.height as usize);
-        let size = w * h;
+        let (w, h, size) = self.my_size();
         let mut buf = String::with_capacity(size * 2 + h);
         use std::fmt::Write;
         let mut ln = 0;
