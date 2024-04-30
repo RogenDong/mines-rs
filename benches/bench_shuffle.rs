@@ -4,7 +4,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use mines::{cell::Cell, location::Loc, mmap::MineMap};
 use rand::{seq::SliceRandom, thread_rng, Rng};
 use smallvec::SmallVec;
-use std::fmt::Write;
+use std::{collections::HashSet, fmt::Write};
 
 const WIDTH: usize = 255;
 const HEIGHT: usize = 255;
@@ -65,11 +65,38 @@ fn ts_uncover(cri: &mut Criterion) {
     });
 }
 
+fn ts_nested(cri: &mut Criterion) {
+    const HH: usize = u16::MAX as usize;
+    const WW: usize = u8::MAX as usize;
+    const SS: usize = WW * HH;
+    let mut ls = Vec::with_capacity(SS);
+    let mut rng = thread_rng();
+    for y in 0..HH {
+        let a = y * WW;
+        let b = (y + 1) * WW;
+        ls.push((a..b).into_iter().collect::<HashSet<usize>>());
+    }
+    cri.bench_function("after flatten", |b| {
+        b.iter(|| {
+            let z = rng.gen_range(0..SS);
+            let _ = black_box(ls.iter().flatten().any(|v| *v == z));
+        })
+    });
+    cri.bench_function("by contains", |b| {
+        b.iter(|| {
+            let z = rng.gen_range(0..SS);
+            let _ = black_box(ls.iter().any(|v| v.contains(&z)));
+        })
+    });
+}
+
 criterion_group!(
-    benches, // ts_fill,
+    benches,
+    ts_nested,
+    // ts_fill,
     // ts_random_shuffle,
     // ts_bmp_warn_by_index,
-    ts_uncover,
+    // ts_uncover,
 );
 // criterion_group!(benches, ts_emp_area);
 criterion_main!(benches);
