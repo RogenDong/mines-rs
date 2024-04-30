@@ -225,11 +225,11 @@ impl MineMap {
                 }
             }
         }
-        let tt = std::time::Instant::now();
+        // let tt = std::time::Instant::now();
         // 分组收集空白区域
         self.group_blank();
-        let tt = tt.elapsed().as_micros();
-        println!("grouping times: {}ms({tt}us)", tt / 1000);
+        // let tt = tt.elapsed().as_micros();
+        // println!("grouping times: {}ms({tt}us)", tt / 1000);
     }
 
     /// 重置进度：清除开关、标记状态
