@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::{cell::Cell, location::Loc};
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
@@ -89,7 +91,7 @@ pub struct MineMap {
     pub width: u8,
     pub height: u8,
     pub map: Vec<u8>,
-    // stat: Vec<u8>,
+    blanks: Vec<HashSet<usize>>,
 }
 impl MineMap {
     /// 导入布局和状态
@@ -100,6 +102,7 @@ impl MineMap {
         if map.len() < 6 {
             return Err("输入数据太短！[宽, 高, 数据..]".to_string());
         }
+        // TODO: 验证数据有效性
         let mut count = 0;
         if hold_stat {
             count = map.iter().skip(2).filter(|&v| v & 0x1f > 8).count() as u16;
@@ -111,12 +114,15 @@ impl MineMap {
                 }
             }
         }
-        Ok(Self {
+        let mut mm = Self {
+            blanks: Vec::with_capacity((map.len() - 2) / 16),
             map: map[2..].into(),
             height: map[1],
             width: map[0],
             count,
-        })
+        };
+        mm.group_blank();
+        Ok(mm)
     }
 
     pub fn new(count: u16, width: u8, height: u8) -> Result<Self, String> {
@@ -135,7 +141,7 @@ impl MineMap {
             width,
             height,
             map: vec![0; cap],
-            // stat: vec![0; MAX_LEN_STAT],
+            blanks: Vec::with_capacity(cap / 16),
         })
     }
 
@@ -219,6 +225,11 @@ impl MineMap {
                 }
             }
         }
+        let tt = std::time::Instant::now();
+        // 分组收集空白区域
+        self.group_blank();
+        let tt = tt.elapsed().as_micros();
+        println!("grouping times: {}ms({tt}us)", tt / 1000);
     }
 
     /// 重置进度：清除开关、标记状态
@@ -250,19 +261,19 @@ impl MineMap {
     }
 
     /// 找到空白区域
-    fn uncover_empty_region(&self, i: usize) -> Vec<usize> {
+    fn uncover_empty_region(&self, i: usize) -> HashSet<usize> {
         let (w, h, size) = self.my_size();
         // 结果集
-        let mut result = Vec::with_capacity(size - 2);
+        let mut result = HashSet::with_capacity(size - 2);
+        // 已访问的下标
+        let mut vis = HashSet::with_capacity(size - 2);
         // 本轮待检查的下标集
         let mut current = Vec::with_capacity(size - 2);
         // 暂存下一轮数据
         let mut next = Vec::with_capacity(size - 2);
-        // 已访问的下标
-        let mut vis = Vec::with_capacity(size - 2);
         // 起点直接加入结果集、已访集
-        vis.push(i);
-        result.push(i);
+        result.insert(i);
+        vis.insert(i);
         // 获取起点周围的下标，作为首轮待检查下标
         current.extend(get_around_index(i, w, h).into_iter().filter(|a| *a < size));
 
@@ -272,12 +283,12 @@ impl MineMap {
                 if vis.contains(&i) {
                     continue;
                 }
-                vis.push(i);
+                vis.insert(i);
                 let v = self.map[i];
                 if v > 0 {
                     // 遇到数字时该下标收集入结果集，不寻找其周围下标。
                     if v < 9 {
-                        result.push(i);
+                        result.insert(i);
                     }
                     continue;
                 }
@@ -286,7 +297,7 @@ impl MineMap {
                         .into_iter()
                         .filter(|a| *a < size && !vis.contains(a)),
                 );
-                result.push(i);
+                result.insert(i);
             }
             // next为空集则结束递推。
             if next.is_empty() {
@@ -297,6 +308,17 @@ impl MineMap {
             current.append(&mut next);
         }
         result
+    }
+
+    /// 识别空白区域，分组收集
+    fn group_blank(&mut self) {
+        self.blanks.clear();
+        let size = self.width as usize * self.height as usize;
+        for i in 0..size {
+            if Cell(self.map[i]).is_empty() && !self.blanks.iter().any(|b| b.contains(&i)) {
+                self.blanks.push(self.uncover_empty_region(i));
+            }
+        }
     }
 
     /// 打开一片区域
