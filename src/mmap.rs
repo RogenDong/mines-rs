@@ -2,26 +2,9 @@ use crate::{cell::Cell, location::Loc};
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 
-// const MAX_LEN: usize = 255 * 255;
-// const MAX_LEN_STAT: usize = MAX_LEN / 8;
-
-// fn is_tag(map: &Vec<u8>, f: usize) -> bool {
-//     if f == 0 {
-//         map[0] & 0x80 > 0
-//     } else if f < MAX_LEN {
-//         map[f / 8] & (0x80 >> (f % 8)) > 0
-//     } else {
-//         false
-//     }
-// }
-
-// fn set_tag(map: &mut Vec<u8>, f: usize) {
-//     if f == 0 {
-//         map[0] |= 1;
-//     } else if f < MAX_LEN {
-//         map[f / 8] |= 1 << (f % 8);
-//     }
-// }
+// 表示无效下标。减1是为了后续增减操作不发生溢出。
+const M: usize = usize::MAX - 1;
+const INVALID_AROUND: [usize; 8] = [M, M, M, M, M, M, M, M];
 
 /// 基于长宽和二维坐标换算得到下标
 /// * 地雷、数量等信息存储在简单数组中
@@ -34,67 +17,69 @@ fn loc_to_idx(x: usize, y: usize, w: usize, h: usize) -> Option<usize> {
     }
 }
 
-/// 下标转坐标
-fn idx_to_loc(i: usize, w: usize, h: usize) -> Option<(usize, usize)> {
-    let s = w * h;
-    if i >= s {
-        return None;
-    }
-    Some(if i == 0 {
-        (0, 0)
-    } else if i == w {
-        (0, 1)
-    } else if i < w {
-        (i, 0)
-    } else if i == s - 1 {
-        (w - 1, h - 1)
-    } else {
-        let x = i % w;
-        (x, (i - x) / w)
-    })
-}
+// /// 下标转坐标
+// fn idx_to_loc(i: usize, w: usize, h: usize) -> Option<(usize, usize)> {
+//     let s = w * h;
+//     if i >= s {
+//         return None;
+//     }
+//     Some(if i == 0 {
+//         (0, 0)
+//     } else if i == w {
+//         (0, 1)
+//     } else if i < w {
+//         (i, 0)
+//     } else if i == s - 1 {
+//         (w - 1, h - 1)
+//     } else {
+//         let x = i % w;
+//         (x, (i - x) / w)
+//     })
+// }
 
 /// 基于长宽和二维坐标收集并返回周围单位的下标
 /// # Return
 /// - 需要自增的位置是有效下标
 /// - 不自增的位置用大于地图最大长度的值表示
-fn get_around_index(i: usize, w: usize, h: usize) -> Option<[usize; 8]> {
+fn get_around_index(i: usize, w: usize, h: usize) -> [usize; 8] {
     let size = w * h;
     if i >= size {
-        return None;
+        return INVALID_AROUND;
     }
-    // 表示无效下标。减1是为了后续增减操作不发生溢出。
-    const M: usize = usize::MAX - 1;
     // 周围一圈下标在集合中的顺序
     // D,N,A = 7,0,1
     // W,_,E = 6,_,2
     // C,S,B = 5,4,3
     if i == 0 {
         // 左上=[_,_,E,B,S,..]
-        return Some([M, M, i + 1, (i + w + 1), (i + w), M, M, M]);
-    }
-    if i == size - 1 {
+        return [M, M, (i + 1), (i + w + 1), (i + w), M, M, M];
+    } else if i == w - 1 {
+        // 右上=[..,S,C,W,_]
+        return [M, M, M, M, (i + w), (i + w - 1), (i - 1), M];
+    } else if i == size - w {
+        // 左下=[N,A,E,..]
+        return [(i - w), (i - w + 1), (i + 1), M, M, M, M, M];
+    } else if i == size - 1 {
         // 右下=[N,..,W,D]
-        return Some([(i - w), M, M, M, M, M, (i - 1), (i - w - 1)]);
+        return [(i - w), M, M, M, M, M, (i - 1), (i - w - 1)];
     }
-    let (x, y) = idx_to_loc(i, w, h).unwrap();
+    let t = i % w;
     // 根据x,y是否贴边计算四周下标偏移
-    #[allow(non_snake_case)]
-    let (WI, NI, EI, SI) = (
-        if x > 0 { i - 1 } else { M },
-        if y > 0 { i - w } else { M },
-        if x < w - 1 { i + 1 } else { M },
-        if y < h - 1 { i + w } else { M },
+    let (wi, ni, ei, si) = (
+        if t < 1 { M } else { i - 1 },
+        if i < w { M } else { i - w },
+        if t + 1 == w { M } else { i + 1 },
+        if i >= size - w { M } else { i + w },
     );
-    if WI == M {
+    if wi == M {
         // 表示当前贴左边，偏移=[N,A,E,B,S,..]
-        Some([NI, (NI + 1), EI, (SI + 1), SI, M, M, M])
-    } else if EI == M {
+        [ni, (ni + 1), ei, (si + 1), si, M, M, M]
+    } else if ei == M {
         // 表示当前贴右边，偏移=[N,..,S,C,W,D]
-        Some([NI, M, M, M, SI, (SI - 1), WI, (NI - 1)])
+        [ni, M, M, M, si, (si - 1), wi, (ni - 1)]
     } else {
         // A,D的偏移可以通过N+-1获得；B,C的偏移同理。
-        Some([NI, (NI + 1), EI, (SI + 1), SI, (SI - 1), WI, (NI - 1)])
+        [ni, (ni + 1), ei, (si + 1), si, (si - 1), wi, (ni - 1)]
     }
 }
 
@@ -202,23 +187,19 @@ impl MineMap {
             return;
         };
         self.map[c] = 0;
-        let mut rng = thread_rng();
-        let Some(area) = get_around_index(c, w, h) else {
-            return;
-        };
         let size = w * h;
+        let mut rng = thread_rng();
+        let area = get_around_index(c, w, h);
         for &a in &area {
-            match self.map.get_mut(a) {
-                Some(c @ 9) => *c = 0,
-                _ => continue,
+            if a >= size || self.map[a] != 9 {
+                continue;
             }
+            self.map[a] = 0;
             loop {
                 let i = rng.gen_range(0..size);
-                if !area.contains(&i) {
-                    if let Some(c @ 0) = self.map.get_mut(i) {
-                        *c = 9;
-                        break;
-                    }
+                if !area.contains(&i) && self.map[i] == 0 {
+                    self.map[i] = 9;
+                    break;
                 }
             }
         }
@@ -236,10 +217,7 @@ impl MineMap {
                 continue;
             }
             // get around
-            let Some(ls) = get_around_index(i, w, h) else {
-                continue;
-            };
-            for a in ls {
+            for a in get_around_index(i, w, h) {
                 if a < size {
                     self.map[a] += 1;
                 }
