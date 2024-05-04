@@ -347,6 +347,15 @@ impl MineMap {
             .map(|v| Cell(*v))
             .any(|c| !c.is_open() && !c.is_mine())
     }
+    
+    /// 打开所有地雷
+    pub fn open_all_mines(&mut self) {
+        for v in self.map.iter_mut() {
+            if *v & 0x1f > 8 {
+                *v |= 0x80;
+            }
+        }
+    }
 
     /// 打开周围一圈
     pub fn open_around(&mut self, x: usize, y: usize) {
