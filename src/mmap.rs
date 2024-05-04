@@ -261,7 +261,7 @@ impl MineMap {
     }
 
     /// 找到空白区域
-    fn uncover_empty_region(&self, i: usize) -> HashSet<usize> {
+    fn reveal_empty_region(&self, i: usize) -> HashSet<usize> {
         let (w, h, size) = self.my_size();
         // 结果集
         let mut result = HashSet::with_capacity(size - 2);
@@ -320,7 +320,7 @@ impl MineMap {
         let size = self.width as usize * self.height as usize;
         for i in 0..size {
             if Cell(self.map[i]).is_empty() && !self.blanks.iter().any(|b| b.contains(&i)) {
-                self.blanks.push(self.uncover_empty_region(i));
+                self.blanks.push(self.reveal_empty_region(i));
             }
         }
     }
@@ -330,7 +330,7 @@ impl MineMap {
         let region = match self.blanks.iter().find(|r| r.contains(&i)) {
             Some(r) => r,
             _ => {
-                self.blanks.push(self.uncover_empty_region(i));
+                self.blanks.push(self.reveal_empty_region(i));
                 self.blanks.last().unwrap()
             }
         };
@@ -338,6 +338,14 @@ impl MineMap {
             self.map[*i] |= crate::cell::BIT_OPEN;
         }
         // TODO: 打开后需要反馈
+    }
+
+    /// 是否已经打开所有非雷单位
+    pub fn is_all_reveal(&self) -> bool {
+        self.map
+            .iter()
+            .map(|v| Cell(*v))
+            .any(|c| !c.is_open() && !c.is_mine())
     }
 
     /// 打开周围一圈
