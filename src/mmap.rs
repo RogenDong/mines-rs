@@ -367,6 +367,9 @@ impl MineMap {
         if c.is_flag() {
             return;
         }
+        if c.is_empty() {
+            self.open_region(i);
+        }
         for a in get_around_index(i, w, h) {
             let mut c = Cell(self.map[a]);
             if c.is_empty() {
@@ -379,22 +382,20 @@ impl MineMap {
         }
     }
 
-    pub fn open(&mut self, x: usize, y: usize) {
+    pub fn open(&mut self, x: usize, y: usize) -> Option<Cell> {
         let Some(i) = loc_to_idx(x, y, self.width as usize, self.height as usize) else {
-            return;
+            return None;
         };
         let mut c = Cell(self.map[i]);
         if c.is_flag() {
-            return;
-        }
-        if c.is_empty() {
-            return self.open_region(i);
+            return Some(c);
         }
         c.switch_open();
         self.map[i] = c.0;
+        Some(c)
     }
 
-    pub fn open_by_loc(&mut self, Loc(x, y): Loc) {
+    pub fn open_by_loc(&mut self, Loc(x, y): Loc) -> Option<Cell> {
         self.open(x as usize, y as usize)
     }
 
