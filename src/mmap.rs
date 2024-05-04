@@ -115,7 +115,7 @@ impl MineMap {
             }
         }
         let mut mm = Self {
-            blanks: Vec::with_capacity((map.len() - 2) / 16),
+            blanks: Vec::with_capacity((map.len() - 2) / 32),
             map: map[2..].into(),
             height: map[1],
             width: map[0],
@@ -141,7 +141,7 @@ impl MineMap {
             width,
             height,
             map: vec![0; cap],
-            blanks: Vec::with_capacity(cap / 16),
+            blanks: Vec::with_capacity(cap / 32),
         })
     }
 
@@ -313,6 +313,10 @@ impl MineMap {
     /// 识别空白区域，分组收集
     fn group_blank(&mut self) {
         self.blanks.clear();
+        // 预估空白区太多，搜索很慢，停止搜索
+        if self.blanks.capacity() > 100 {
+            return;
+        }
         let size = self.width as usize * self.height as usize;
         for i in 0..size {
             if Cell(self.map[i]).is_empty() && !self.blanks.iter().any(|b| b.contains(&i)) {
@@ -323,9 +327,15 @@ impl MineMap {
 
     /// 打开一片区域
     fn open_region(&mut self, i: usize) {
-        let region = self.uncover_empty_region(i);
+        let region = match self.blanks.iter().find(|r| r.contains(&i)) {
+            Some(r) => r,
+            _ => {
+                self.blanks.push(self.uncover_empty_region(i));
+                self.blanks.last().unwrap()
+            }
+        };
         for i in region {
-            self.map[i] |= crate::cell::BIT_OPEN;
+            self.map[*i] |= crate::cell::BIT_OPEN;
         }
         // TODO: 打开后需要反馈
     }
