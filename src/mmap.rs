@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use crate::{cell::Cell, location::Loc};
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
+use smallvec::SmallVec;
 
 // 表示无效下标。减1是为了后续增减操作不发生溢出。
 const M: usize = usize::MAX - 1;
@@ -93,6 +94,19 @@ pub struct MineMap {
     pub map: Vec<u8>,
     blanks: Vec<HashSet<usize>>,
 }
+pub struct MinesIter<'a> {
+    map: &'a Vec<u8>,
+    idx: usize,
+}
+
+impl Iterator for MinesIter<'_> {
+    type Item = (usize, Cell);
+    fn next(&mut self) -> Option<Self::Item> {
+        let v = self.map.get(self.idx)?;
+        self.idx += 1;
+        Some((self.idx - 1, Cell(*v)))
+    }
+}
 impl MineMap {
     /// 导入布局和状态
     /// # Argument
@@ -160,6 +174,10 @@ impl MineMap {
             self.width as usize,
             self.height as usize,
         )?)?))
+    }
+
+    pub fn iter(&self) -> MinesIter {
+        MinesIter { map: &self.map, idx: 0 }
     }
 
     #[inline]
@@ -342,7 +360,7 @@ impl MineMap {
 
     /// 是否已经打开所有非雷单位
     pub fn is_all_reveal(&self) -> bool {
-        self.map
+        !self.map
             .iter()
             .map(|v| Cell(*v))
             .any(|c| !c.is_open() && !c.is_mine())
@@ -358,28 +376,33 @@ impl MineMap {
     }
 
     /// 打开周围一圈
-    pub fn open_around(&mut self, x: usize, y: usize) {
+    pub fn open_around(&mut self, x: usize, y: usize) -> SmallVec<[Cell; 8]> {
         let (w, h) = (self.width as usize, self.height as usize);
+        let mut ls = SmallVec::new();
         let Some(i) = loc_to_idx(x, y, w, h) else {
-            return;
+            return ls;
         };
         let c = Cell(self.map[i]);
-        if c.is_flag() {
-            return;
+        if !c.is_open() && c.is_flag() {
+            return ls;
         }
         if c.is_empty() {
             self.open_region(i);
+            return ls;
         }
         for a in get_around_index(i, w, h) {
             let mut c = Cell(self.map[a]);
             if c.is_empty() {
-                return self.open_region(i);
+                self.open_region(i);
+                return ls;
             }
             if !c.is_flag() {
                 c.open();
+                ls.push(c);
                 self.map[a] = c.0;
             }
         }
+        ls
     }
 
     pub fn open(&mut self, x: usize, y: usize) -> Option<Cell> {
@@ -410,6 +433,16 @@ impl MineMap {
 
     pub fn switch_flag_by_loc(&mut self, Loc(x, y): Loc) {
         self.switch_flag(x as usize, y as usize)
+    }
+
+    pub fn count_flag(&self) -> usize {
+        let mut count = 0;
+        for v in &self.map {
+            if *v & 0xC0 == 0x40 {
+                count += 1;
+            }
+        }
+        count
     }
 
     /// 导出布局数据
