@@ -21,7 +21,7 @@ impl Cell {
 
     #[inline]
     pub fn is_open(&self) -> bool {
-        self.0 > BIT_OPEN
+        self.0 >= BIT_OPEN
     }
 
     #[inline]
@@ -70,10 +70,23 @@ impl Cell {
         self.0 ^= BIT_FLAG
     }
 }
-
-
 impl PartialEq for Cell {
     fn eq(&self, other: &Self) -> bool {
         self.get_warn() == other.get_warn()
+    }
+}
+impl std::fmt::Display for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Cell({:0>8b})", self.0)
+    }
+}
+impl std::fmt::Debug for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Cell")
+            .field("value", &format!("{:0>8b}", self.0))
+            .field("open", &self.is_open())
+            .field("flag", &self.is_flag())
+            .field("warn", &self.get_warn())
+            .finish()
     }
 }
