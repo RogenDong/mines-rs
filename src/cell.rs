@@ -1,5 +1,7 @@
+use std::fmt::{Debug, Display, Formatter, Result};
+
 // 位标识：是否打开
-pub const BIT_OPEN: u8 = 0x80;
+pub const BIT_REVEAL: u8 = 0x80;
 // 位标识：是否插旗
 const BIT_FLAG: u8 = 0x40;
 // 位标识：周围地雷数
@@ -20,12 +22,12 @@ impl Cell {
     }
 
     #[inline]
-    pub fn is_open(&self) -> bool {
-        self.0 >= BIT_OPEN
+    pub fn is_reveal(&self) -> bool {
+        self.0 >= BIT_REVEAL
     }
 
     #[inline]
-    pub fn is_flag(&self) -> bool {
+    pub fn is_flagged(&self) -> bool {
         self.0 & BIT_FLAG > 0
     }
 
@@ -51,18 +53,8 @@ impl Cell {
     }
 
     #[inline]
-    pub fn open(&mut self) {
-        self.0 |= BIT_OPEN
-    }
-
-    #[inline]
-    pub fn flag(&mut self) {
-        self.0 |= BIT_FLAG
-    }
-
-    #[inline]
-    pub fn switch_open(&mut self) {
-        self.0 ^= BIT_OPEN
+    pub fn reveal(&mut self) {
+        self.0 |= BIT_REVEAL
     }
 
     #[inline]
@@ -75,17 +67,17 @@ impl PartialEq for Cell {
         self.get_warn() == other.get_warn()
     }
 }
-impl std::fmt::Display for Cell {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Cell {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "Cell({:0>8b})", self.0)
     }
 }
-impl std::fmt::Debug for Cell {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for Cell {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Cell")
             .field("value", &format!("{:0>8b}", self.0))
-            .field("open", &self.is_open())
-            .field("flag", &self.is_flag())
+            .field("flagged", &self.is_flagged())
+            .field("reveal", &self.is_reveal())
             .field("warn", &self.get_warn())
             .finish()
     }

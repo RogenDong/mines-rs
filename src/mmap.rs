@@ -1,15 +1,13 @@
 use std::collections::HashSet;
 
 use crate::{cell::Cell, location::Loc};
-use rand::seq::SliceRandom;
-use rand::{thread_rng, Rng};
+use rand::{seq::SliceRandom, thread_rng, Rng};
 
-// 表示无效下标。减1是为了后续增减操作不发生溢出。
+/// 表示无效下标。减1是为了后续增减操作不发生溢出。
 const M: usize = usize::MAX - 1;
 const INVALID_AROUND: [usize; 8] = [M, M, M, M, M, M, M, M];
 
 /// 基于长宽和二维坐标换算得到下标
-/// * 地雷、数量等信息存储在简单数组中
 #[inline]
 fn loc_to_idx(x: usize, y: usize, w: usize, h: usize) -> Option<usize> {
     if x < w && y < h {
@@ -41,8 +39,7 @@ fn loc_to_idx(x: usize, y: usize, w: usize, h: usize) -> Option<usize> {
 
 /// 基于长宽和二维坐标收集并返回周围单位的下标
 /// # Return
-/// - 需要自增的位置是有效下标
-/// - 不自增的位置用大于地图最大长度的值表示
+/// - 大于地图最大长度的值表示无效下标
 fn get_around_index(i: usize, w: usize, h: usize) -> [usize; 8] {
     let size = w * h;
     if i >= size {
@@ -97,7 +94,6 @@ pub struct MinesIter<'a> {
     map: &'a Vec<u8>,
     idx: usize,
 }
-
 impl Iterator for MinesIter<'_> {
     type Item = (usize, Cell);
     fn next(&mut self) -> Option<Self::Item> {
@@ -176,7 +172,10 @@ impl MineMap {
     }
 
     pub fn iter(&self) -> MinesIter {
-        MinesIter { map: &self.map, idx: 0 }
+        MinesIter {
+            map: &self.map,
+            idx: 0,
+        }
     }
 
     #[inline]
@@ -343,7 +342,7 @@ impl MineMap {
     }
 
     /// 打开一片区域
-    fn open_region(&mut self, i: usize) -> usize {
+    fn reveal_region(&mut self, i: usize) -> usize {
         let region = match self.blanks.iter().find(|r| r.contains(&i)) {
             Some(r) => r,
             _ => {
@@ -353,21 +352,22 @@ impl MineMap {
         };
         // let (w, h) = (self.width as usize, self.height as usize);
         for &i in region {
-            self.map[i] |= crate::cell::BIT_OPEN;
+            self.map[i] |= crate::cell::BIT_REVEAL;
         }
         region.len()
     }
 
     /// 是否已经打开所有非雷单位
     pub fn is_all_reveal(&self) -> bool {
-        !self.map
+        !self
+            .map
             .iter()
             .map(|v| Cell(*v))
-            .any(|c| !c.is_open() && !c.is_mine())
+            .any(|c| !c.is_reveal() && !c.is_mine())
     }
-    
+
     /// 打开所有地雷
-    pub fn open_all_mines(&mut self) {
+    pub fn reveal_all_mines(&mut self) {
         for v in self.map.iter_mut() {
             if *v & 0x1f > 8 {
                 *v |= 0x80;
@@ -376,26 +376,26 @@ impl MineMap {
     }
 
     /// 打开周围一圈
-    pub fn open_around(&mut self, x: usize, y: usize) -> usize {
+    pub fn reveal_around(&mut self, x: usize, y: usize) -> usize {
         let (w, h) = (self.width as usize, self.height as usize);
         let Some(i) = loc_to_idx(x, y, w, h) else {
             return 0;
         };
         let c = Cell(self.map[i]);
-        if !c.is_open() && c.is_flag() {
+        if !c.is_reveal() && c.is_flagged() {
             return 0;
         }
         if c.is_empty() {
-            return self.open_region(i);
+            return self.reveal_region(i);
         }
         let mut count = 0;
         for a in get_around_index(i, w, h) {
             let mut c = Cell(self.map[a]);
             if c.is_empty() {
-                return self.open_region(i);
+                return self.reveal_region(i);
             }
-            if !c.is_flag() {
-                c.open();
+            if !c.is_flagged() {
+                c.reveal();
                 count += 1;
                 self.map[a] = c.0;
             }
@@ -403,24 +403,24 @@ impl MineMap {
         count
     }
 
-    pub fn open(&mut self, x: usize, y: usize) -> usize {
+    pub fn reveal(&mut self, x: usize, y: usize) -> usize {
         let Some(i) = loc_to_idx(x, y, self.width as usize, self.height as usize) else {
             return 0;
         };
         let mut c = Cell(self.map[i]);
-        if c.is_flag() {
+        if c.is_flagged() {
             return 0;
         }
         if c.is_empty() {
-            return self.open_region(i);
+            return self.reveal_region(i);
         }
-        c.switch_open();
+        c.reveal();
         self.map[i] = c.0;
         1
     }
 
-    pub fn open_by_loc(&mut self, Loc(x, y): Loc) -> usize {
-        self.open(x as usize, y as usize)
+    pub fn reveal_by_loc(&mut self, Loc(x, y): Loc) -> usize {
+        self.reveal(x as usize, y as usize)
     }
 
     pub fn switch_flag(&mut self, x: usize, y: usize) {
@@ -436,7 +436,7 @@ impl MineMap {
         self.switch_flag(x as usize, y as usize)
     }
 
-    pub fn count_flag(&self) -> usize {
+    pub fn count_flagged(&self) -> usize {
         let mut count = 0;
         for v in &self.map {
             if *v & 0xC0 == 0x40 {
