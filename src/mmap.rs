@@ -255,15 +255,17 @@ impl MineMap {
     }
 
     pub fn format_str(&self) -> String {
+        const NUMS: &[u8; 9] = b" 12345678";
         let (w, h, size) = self.my_size();
         let mut buf = String::with_capacity(size * 2 + h);
-        use std::fmt::Write;
         let mut ln = 0;
         for i in 0..size {
-            match Cell(self.map[i]).get_warn() {
-                0 => buf.push_str("  "),
-                v @ 1..=8 => write!(buf, " {v}").unwrap(),
-                _ => buf.push_str(" +"),
+            buf.push(' ');
+            let v = Cell(self.map[i]).get_warn() as usize;
+            if v <= 8 {
+                buf.push(NUMS[v] as char);
+            } else {
+                buf.push('-');
             }
             if ln < w - 1 {
                 ln += 1;
