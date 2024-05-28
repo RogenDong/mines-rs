@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use crate::{cell::Cell, location::Loc};
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
-use smallvec::SmallVec;
 
 // 表示无效下标。减1是为了后续增减操作不发生溢出。
 const M: usize = usize::MAX - 1;
@@ -266,7 +265,7 @@ impl MineMap {
             match Cell(self.map[i]).get_warn() {
                 0 => buf.push_str("  "),
                 v @ 1..=8 => write!(buf, " {v}").unwrap(),
-                _ => buf.push_str(" ·"),
+                _ => buf.push_str(" +"),
             }
             if ln < w - 1 {
                 ln += 1;
@@ -344,7 +343,7 @@ impl MineMap {
     }
 
     /// 打开一片区域
-    fn open_region(&mut self, i: usize) {
+    fn open_region(&mut self, i: usize) -> usize {
         let region = match self.blanks.iter().find(|r| r.contains(&i)) {
             Some(r) => r,
             _ => {
@@ -352,10 +351,11 @@ impl MineMap {
                 self.blanks.last().unwrap()
             }
         };
-        for i in region {
-            self.map[*i] |= crate::cell::BIT_OPEN;
+        // let (w, h) = (self.width as usize, self.height as usize);
+        for &i in region {
+            self.map[i] |= crate::cell::BIT_OPEN;
         }
-        // TODO: 打开后需要反馈
+        region.len()
     }
 
     /// 是否已经打开所有非雷单位
@@ -376,49 +376,50 @@ impl MineMap {
     }
 
     /// 打开周围一圈
-    pub fn open_around(&mut self, x: usize, y: usize) -> SmallVec<[Cell; 8]> {
+    pub fn open_around(&mut self, x: usize, y: usize) -> usize {
         let (w, h) = (self.width as usize, self.height as usize);
-        let mut ls = SmallVec::new();
         let Some(i) = loc_to_idx(x, y, w, h) else {
-            return ls;
+            return 0;
         };
         let c = Cell(self.map[i]);
         if !c.is_open() && c.is_flag() {
-            return ls;
+            return 0;
         }
         if c.is_empty() {
-            self.open_region(i);
-            return ls;
+            return self.open_region(i);
         }
+        let mut count = 0;
         for a in get_around_index(i, w, h) {
             let mut c = Cell(self.map[a]);
             if c.is_empty() {
-                self.open_region(i);
-                return ls;
+                return self.open_region(i);
             }
             if !c.is_flag() {
                 c.open();
-                ls.push(c);
+                count += 1;
                 self.map[a] = c.0;
             }
         }
-        ls
+        count
     }
 
-    pub fn open(&mut self, x: usize, y: usize) -> Option<Cell> {
+    pub fn open(&mut self, x: usize, y: usize) -> usize {
         let Some(i) = loc_to_idx(x, y, self.width as usize, self.height as usize) else {
-            return None;
+            return 0;
         };
         let mut c = Cell(self.map[i]);
         if c.is_flag() {
-            return Some(c);
+            return 0;
+        }
+        if c.is_empty() {
+            return self.open_region(i);
         }
         c.switch_open();
         self.map[i] = c.0;
-        Some(c)
+        1
     }
 
-    pub fn open_by_loc(&mut self, Loc(x, y): Loc) -> Option<Cell> {
+    pub fn open_by_loc(&mut self, Loc(x, y): Loc) -> usize {
         self.open(x as usize, y as usize)
     }
 
