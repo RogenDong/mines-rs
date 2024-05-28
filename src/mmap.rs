@@ -95,11 +95,10 @@ pub struct MinesIter<'a> {
     idx: usize,
 }
 impl Iterator for MinesIter<'_> {
-    type Item = (usize, Cell);
+    type Item = Cell;
     fn next(&mut self) -> Option<Self::Item> {
-        let v = self.map.get(self.idx)?;
         self.idx += 1;
-        Some((self.idx - 1, Cell(*v)))
+        Some(Cell(*self.map.get(self.idx - 1)?))
     }
 }
 impl MineMap {
