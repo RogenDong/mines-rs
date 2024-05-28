@@ -199,20 +199,19 @@ impl MineMap {
     }
 
     /// 设置安全区
-    fn ignore_area(&mut self, ignore: Option<Loc>) {
+    fn ignore(&mut self, ignore: Option<Loc>) {
         let Some(c) = ignore else { return };
         let (x, y, (w, h, size)) = (c.0 as usize, c.1 as usize, self.my_size());
         let Some(c) = loc_to_idx(x, y, w, h) else {
             return;
         };
-        self.map[c] = 0;
         let mut rng = thread_rng();
-        let area = get_around_index(c, w, h);
+        let mut area = Vec::from(get_around_index(c, w, h));
+        area.push(c);
         for &a in &area {
-            if a >= size || self.map[a] != 9 {
+            if a > size || self.map[a] == 0 {
                 continue;
             }
-            self.map[a] = 0;
             loop {
                 let i = rng.gen_range(0..size);
                 if !area.contains(&i) && self.map[i] == 0 {
@@ -220,13 +219,14 @@ impl MineMap {
                     break;
                 }
             }
+            self.map[a] = 0;
         }
     }
 
     pub fn new_game(&mut self, ignore: Option<Loc>) {
         self.shuffle();
         // 设置安全区
-        self.ignore_area(ignore);
+        self.ignore(ignore);
         // 设置地雷警示数值
         let (w, h, size) = self.my_size();
         for i in 0..size {
