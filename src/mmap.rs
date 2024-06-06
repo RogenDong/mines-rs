@@ -259,13 +259,43 @@ impl MineMap {
         let (w, h, size) = self.my_size();
         let mut buf = String::with_capacity(size * 2 + h);
         let mut ln = 0;
-        for i in 0..size {
+        for v in &self.map {
             buf.push(' ');
-            let v = Cell(self.map[i]).get_warn() as usize;
+            let v = Cell(*v).get_warn() as usize;
             if v <= 8 {
                 buf.push(NUMS[v] as char);
             } else {
                 buf.push('-');
+            }
+            if ln < w - 1 {
+                ln += 1;
+            } else {
+                buf.push('\n');
+                ln = 0;
+            }
+        }
+        buf
+    }
+
+    pub fn format_stat_str(&self) -> String {
+        const NUMS: &[u8; 9] = b" 12345678";
+        let (w, h, size) = self.my_size();
+        let mut buf = String::with_capacity(size * 2 + h);
+        let mut ln = 0;
+        for v in &self.map {
+            buf.push(' ');
+            let c = Cell(*v);
+            if c.is_reveal() {
+                let w = c.get_warn() as usize;
+                if w < 8 {
+                    buf.push(NUMS[w] as char);
+                } else {
+                    buf.push('+');
+                }
+            } else if c.is_flagged() {
+                buf.push('@');
+            } else {
+                buf.push('·');
             }
             if ln < w - 1 {
                 ln += 1;
@@ -352,10 +382,16 @@ impl MineMap {
             }
         };
         // let (w, h) = (self.width as usize, self.height as usize);
+        let mut count = 0;
         for &i in region {
+            let c = Cell(self.map[i]);
+            if c.is_flagged_unrevealed() || c.is_reveal() {
+                continue;
+            }
             self.map[i] |= crate::cell::BIT_REVEAL;
+            count += 1;
         }
-        region.len()
+        count
     }
 
     /// 是否已经打开所有非雷单位
@@ -378,28 +414,34 @@ impl MineMap {
 
     /// 打开周围一圈
     pub fn reveal_around(&mut self, x: usize, y: usize) -> usize {
-        let (w, h) = (self.width as usize, self.height as usize);
+        let (w, h, size) = self.my_size();
         let Some(i) = loc_to_idx(x, y, w, h) else {
             return 0;
         };
         let c = Cell(self.map[i]);
-        if !c.is_reveal() && c.is_flagged() {
-            return 0;
-        }
         if c.is_empty() {
             return self.reveal_region(i);
         }
+        if !c.is_reveal() {
+            return 0;
+        }
         let mut count = 0;
         for a in get_around_index(i, w, h) {
+            if a >= size {
+                continue;
+            }
             let mut c = Cell(self.map[a]);
-            if c.is_empty() {
+            if c.is_reveal() {
+                continue;
+            }
+            if c.is_flagged() {
+                continue;
+            } else if c.is_empty() {
                 return self.reveal_region(i);
             }
-            if !c.is_flagged() {
-                c.reveal();
-                count += 1;
-                self.map[a] = c.0;
-            }
+            c.reveal();
+            count += 1;
+            self.map[a] = c.0;
         }
         count
     }
@@ -438,13 +480,29 @@ impl MineMap {
     }
 
     pub fn count_flagged(&self) -> usize {
+        self.map
+            .iter()
+            .filter_map(|&v| Cell(v).is_flagged_unrevealed().then_some(1))
+            .count()
+    }
+
+    /// 统计周围标记数
+    pub fn count_flagged_around(&self, x: usize, y: usize) -> usize {
+        let (w, h) = (self.width as usize, self.height as usize);
+        let Some(i) = loc_to_idx(x, y, w, h) else {
+            return 0;
+        };
+        let c = Cell(self.map[i]);
         let mut count = 0;
-        for v in &self.map {
-            if *v & 0xC0 == 0x40 {
-                count += 1;
-            }
+        if c.is_flagged_unrevealed() {
+            count = 1;
         }
         count
+            + get_around_index(i, w, h)
+                .iter()
+                .filter_map(|&a| self.map.get(a))
+                .filter_map(|&v| Cell(v).is_flagged_unrevealed().then_some(1))
+                .count()
     }
 
     /// 导出布局数据
