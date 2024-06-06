@@ -31,6 +31,12 @@ impl Cell {
         self.0 & BIT_FLAG > 0
     }
 
+    /// 是否已标记，且未打开
+    #[inline]
+    pub fn is_flagged_unrevealed(&self) -> bool {
+        self.0 & 0xC0 == BIT_FLAG
+    }
+
     #[inline]
     pub fn is_mine(&self) -> bool {
         self.get_warn() > 8
