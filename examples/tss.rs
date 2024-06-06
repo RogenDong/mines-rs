@@ -1,7 +1,11 @@
-use mines::mmap::MineMap;
+use std::io::{stdin, stdout, Write};
+
+use mines::{location::Loc, mmap::MineMap};
 // use rand::{seq::SliceRandom, thread_rng, Rng};
 // use std::fmt::Write;
 // use smallvec::SmallVec;
+
+const TIP: &str = "input: <do x y>\ndo: r  reveal\n    f  flag\n    a  reveal around\n    q  quit";
 
 fn main() {
     let args: Vec<u16> = std::env::args()
@@ -11,11 +15,58 @@ fn main() {
         panic!("args: <width, height, count>")
     };
     let mut mines = MineMap::new(c, w as u8, h as u8).unwrap();
-    mines.new_game(None);
+
+    println!("{TIP}");
+
+    let mut input = String::with_capacity(16);
+    let mut out = stdout();
+    let cin = stdin();
+    let mut flag = 0;
+    loop {
+        print!("> ");
+        out.flush().unwrap();
+        cin.read_line(&mut input).unwrap();
+        let inp = input.trim().to_string();
+        input.clear();
+        if inp.is_empty() {
+            continue;
+        }
+        if inp.starts_with('q') {
+            return;
+        }
+        let [o, x, y] = inp.split(' ').collect::<Vec<&str>>()[..] else {
+            panic!("must {}", TIP)
+        };
+        let x: usize = x.parse().unwrap();
+        let y: usize = y.parse().unwrap();
+        match o {
+            "r" => {
+                if flag == 0 {
+                    mines.new_game(Some(Loc(x as u8, y as u8)));
+                    println!("{}", mines.format_str());
+                    mines.reveal_around(x, y);
+                    flag += 1;
+                } else {
+                    mines.reveal(x, y);
+                }
+                println!("{}", mines.format_stat_str());
+            }
+            "f" => {
+                mines.switch_flag(x, y);
+                println!("{}", mines.format_stat_str());
+            }
+            "a" => {
+                mines.reveal_around(x, y);
+                println!("{}", mines.format_stat_str());
+            }
+            _ => {}
+        }
+    }
+    // mines.new_game(Some(Loc(x, y)));
     // for _ in 0..32 {
     //     mines.new_game(None);
     // }
-    println!("{}", mines.format_str());
+    // println!("{}", mines.format_str());
     // print_format(&mines);
 
     // mines.switch_flag(0, 0);

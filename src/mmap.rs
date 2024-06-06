@@ -437,7 +437,7 @@ impl MineMap {
             if c.is_flagged() {
                 continue;
             } else if c.is_empty() {
-                return self.reveal_region(i);
+                return self.reveal_region(i) + count;
             }
             c.reveal();
             count += 1;
