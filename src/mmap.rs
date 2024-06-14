@@ -384,11 +384,12 @@ impl MineMap {
         // let (w, h) = (self.width as usize, self.height as usize);
         let mut count = 0;
         for &i in region {
-            let c = Cell(self.map[i]);
-            if c.is_flagged_unrevealed() || c.is_reveal() {
+            let mut c = Cell(self.map[i]);
+            if c.is_reveal() || c.is_flagged() {
                 continue;
             }
-            self.map[i] |= crate::cell::BIT_REVEAL;
+            c.reveal();
+            self.map[i] = c.0;
             count += 1;
         }
         count
@@ -431,15 +432,14 @@ impl MineMap {
                 continue;
             }
             let mut c = Cell(self.map[a]);
-            if c.is_reveal() {
-                continue;
-            }
             if c.is_flagged() {
                 continue;
-            } else if c.is_empty() {
-                return self.reveal_region(i) + count;
             }
             c.reveal();
+            if c.is_empty() {
+                count += self.reveal_region(a);
+                continue;
+            }
             count += 1;
             self.map[a] = c.0;
         }
@@ -482,7 +482,7 @@ impl MineMap {
     pub fn count_flagged(&self) -> usize {
         self.map
             .iter()
-            .filter_map(|&v| Cell(v).is_flagged_unrevealed().then_some(1))
+            .filter_map(|&v| Cell(v).is_flagged().then_some(1))
             .count()
     }
 
@@ -494,14 +494,14 @@ impl MineMap {
         };
         let c = Cell(self.map[i]);
         let mut count = 0;
-        if c.is_flagged_unrevealed() {
+        if c.is_flagged() {
             count = 1;
         }
         count
             + get_around_index(i, w, h)
                 .iter()
                 .filter_map(|&a| self.map.get(a))
-                .filter_map(|&v| Cell(v).is_flagged_unrevealed().then_some(1))
+                .filter_map(|&v| Cell(v).is_flagged().then_some(1))
                 .count()
     }
 
