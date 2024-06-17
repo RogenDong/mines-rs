@@ -5,7 +5,7 @@ use mines::{location::Loc, mmap::MineMap};
 // use std::fmt::Write;
 // use smallvec::SmallVec;
 
-const TIP: &str = "input: <do x y>\ndo: r  reveal\n    f  flag\n    a  reveal around\n    q  quit";
+const TIP: &str = "input: <do x y>\ndo: r  reveal\n    f  flag\n    a  reveal around\n    c  count around\n    q  quit";
 
 fn main() {
     let args: Vec<u16> = std::env::args()
@@ -31,7 +31,7 @@ fn main() {
         if inp.is_empty() {
             continue;
         }
-        if inp.starts_with('q') {
+        if inp == "q" {
             return;
         }
         let [o, x, y] = inp.split(' ').collect::<Vec<&str>>()[..] else {
@@ -40,6 +40,11 @@ fn main() {
         let x: usize = x.parse().unwrap();
         let y: usize = y.parse().unwrap();
         match o {
+            "c" => {
+                let c = mines.count_flagged_around(x, y);
+                println!("count around flag: {c}");
+                continue;
+            }
             "r" => {
                 if flag == 0 {
                     mines.new_game(Some(Loc(x as u8, y as u8)));
@@ -49,18 +54,14 @@ fn main() {
                 } else {
                     mines.reveal(x, y);
                 }
-                println!("{}", mines.format_stat_str());
-            }
-            "f" => {
-                mines.switch_flag(x, y);
-                println!("{}", mines.format_stat_str());
             }
             "a" => {
-                mines.reveal_around(x, y);
-                println!("{}", mines.format_stat_str());
+                let _ = mines.reveal_around(x, y);
             }
+            "f" => mines.switch_flag(x, y),
             _ => {}
         }
+        println!("{}", mines.format_stat_str());
     }
     // mines.new_game(Some(Loc(x, y)));
     // for _ in 0..32 {

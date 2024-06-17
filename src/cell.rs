@@ -28,7 +28,7 @@ impl Cell {
 
     #[inline]
     pub fn is_flagged(&self) -> bool {
-        self.0 & BIT_FLAG > 0
+        self.0 & BIT_FLAG == BIT_FLAG
     }
 
     #[inline]
@@ -38,7 +38,7 @@ impl Cell {
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.get_warn() < 1
+        self.get_warn() == 0
     }
 
     pub fn bmp(&mut self, add: bool) {
@@ -54,7 +54,7 @@ impl Cell {
 
     #[inline]
     pub fn reveal(&mut self) {
-        self.0 ^= 0xC0
+        self.0 = self.0 & BIT_WARN | BIT_REVEAL
     }
 
     #[inline]

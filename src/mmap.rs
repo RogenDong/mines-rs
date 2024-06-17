@@ -488,7 +488,7 @@ impl MineMap {
 
     /// 统计周围标记数
     pub fn count_flagged_around(&self, x: usize, y: usize) -> usize {
-        let (w, h) = (self.width as usize, self.height as usize);
+        let (w, h, s) = self.my_size();
         let Some(i) = loc_to_idx(x, y, w, h) else {
             return 0;
         };
@@ -497,12 +497,12 @@ impl MineMap {
         if c.is_flagged() {
             count = 1;
         }
+        for a in get_around_index(i, w, h) {
+            if a <= s && Cell(self.map[a]).is_flagged() {
+                count += 1;
+            }
+        }
         count
-            + get_around_index(i, w, h)
-                .iter()
-                .filter_map(|&a| self.map.get(a))
-                .filter_map(|&v| Cell(v).is_flagged().then_some(1))
-                .count()
     }
 
     /// 导出布局数据
