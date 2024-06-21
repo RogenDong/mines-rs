@@ -13,6 +13,10 @@ smallvec = "1.11.1"
 [dev-dependencies]
 criterion = "*"
 
+[features]
+default = ["guess"]
+guess = []
+
 [[bench]]
 name = "bench_shuffle"
 harness = false

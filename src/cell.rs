@@ -1,11 +1,11 @@
 use std::fmt::{Debug, Display, Formatter, Result};
 
 // 位标识：是否打开
-const BIT_REVEAL: u8 = 0x80;
+pub(crate) const BIT_REVEAL: u8 = 0x80;
 // 位标识：是否插旗
 const BIT_FLAG: u8 = 0x40;
 // 位标识：周围地雷数
-const BIT_WARN: u8 = 0x1F;
+pub(crate) const BIT_WARN: u8 = 0x1F;
 
 /// # 分析每个单元格的状态
 /// ### 位含义

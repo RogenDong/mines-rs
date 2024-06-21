@@ -1,8 +1,11 @@
 use std::collections::HashSet;
 
-use crate::{cell::Cell, location::Loc};
+use crate::{
+    cell::{Cell, BIT_REVEAL, BIT_WARN},
+    location::Loc,
+};
 use rand::{seq::SliceRandom, thread_rng, Rng};
-
+use std::collections::HashMap;
 /// 表示无效下标。减1是为了后续增减操作不发生溢出。
 const M: usize = usize::MAX - 1;
 const INVALID_AROUND: [usize; 8] = [M, M, M, M, M, M, M, M];
@@ -82,6 +85,19 @@ fn get_around_index(i: usize, w: usize, h: usize) -> [usize; 8] {
     }
 }
 
+/// 评估单元格
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Evaluate {
+    /// 未知
+    Guess(u8),
+    /// 死猜
+    Force,
+    /// 确认地雷
+    Mines,
+    /// 安全
+    Safe,
+}
+
 pub struct MineMap {
     // u8::MAX ** 2 < u16::MAX
     pub count: u16,
@@ -89,6 +105,8 @@ pub struct MineMap {
     pub height: u8,
     pub map: Vec<u8>,
     blanks: Vec<HashSet<usize>>,
+    #[cfg(feature = "guess")]
+    evaluate: HashMap<usize, Evaluate>,
 }
 pub struct MinesIter<'a> {
     map: &'a Vec<u8>,
@@ -128,6 +146,8 @@ impl MineMap {
             height: map[1],
             width: map[0],
             count,
+            #[cfg(feature = "guess")]
+            evaluate: HashMap::new(),
         };
         mm.group_blank();
         Ok(mm)
@@ -150,6 +170,8 @@ impl MineMap {
             height,
             map: vec![0; cap],
             blanks: Vec::with_capacity(cap / 32),
+            #[cfg(feature = "guess")]
+            evaluate: HashMap::new(),
         })
     }
 
@@ -520,5 +542,60 @@ impl MineMap {
             res.extend(self.map.iter().map(|&v| v & 0x1f));
         }
         res
+    }
+
+    pub fn evaluate(&self) {
+        macro_rules! pass {
+            ($c:expr) => {
+                if $c {
+                    continue;
+                }
+            };
+        }
+        let (width, height, size) = self.my_size();
+        let mut snap: HashMap<usize, Evaluate> = HashMap::new();
+        for i in 0..=self.map.len() {
+            let v = self.map[i];
+            pass! {v < BIT_REVEAL}
+            let w = v & BIT_WARN;
+            let ls_ai = get_around_index(i, width, height);
+            // there are mines all around
+            if w == 8 {
+                for ai in ls_ai {
+                    if ai < size {
+                        snap.insert(ai, Evaluate::Mines);
+                    }
+                }
+                continue;
+            }
+            let eval = Evaluate::Guess(w);
+            // 评估、统计周围单元
+            let mut ls_around_guess = HashMap::with_capacity(8);
+            let mut count_force = 0;
+            let mut count_guess = 0;
+            let mut count_mines = 0;
+            let mut count_safe = 0;
+            for ai in ls_ai {
+                pass! {ai > size}
+                let av = self.map[ai];
+                pass! {av >= BIT_REVEAL}
+                let Some(&tmp) = snap.get(&ai) else {
+                    ls_around_guess.insert(ai, eval);
+                    count_guess += 1;
+                    continue;
+                };
+                match tmp {
+                    Evaluate::Guess(g) => {
+                        ls_around_guess.insert(ai, Evaluate::Guess(if g < w { g } else { w }));
+                        count_guess += 1;
+                        continue;
+                    }
+                    Evaluate::Force => count_force += 1,
+                    Evaluate::Mines => count_mines += 1,
+                    Evaluate::Safe => count_safe += 1,
+                }
+                ls_around_guess.insert(ai, tmp);
+            }
+        }
     }
 }
