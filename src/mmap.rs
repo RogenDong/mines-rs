@@ -86,12 +86,12 @@ fn get_around_index(i: usize, w: usize, h: usize) -> [usize; 8] {
 }
 
 /// 评估单元格
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Evaluate {
-    /// 未知
-    Guess(u8),
-    /// 死猜
-    Force,
+    /// 未知(概率)
+    Guess(f32),
+    /// 死猜(中心索引)
+    Force(usize),
     /// 确认地雷
     Mines,
     /// 安全
@@ -105,7 +105,7 @@ pub struct MineMap {
     pub height: u8,
     pub map: Vec<u8>,
     blanks: Vec<HashSet<usize>>,
-    #[cfg(feature = "guess")]
+    // #[cfg(feature = "guess")]
     evaluate: HashMap<usize, Evaluate>,
 }
 pub struct MinesIter<'a> {
@@ -146,7 +146,7 @@ impl MineMap {
             height: map[1],
             width: map[0],
             count,
-            #[cfg(feature = "guess")]
+            // #[cfg(feature = "guess")]
             evaluate: HashMap::new(),
         };
         mm.group_blank();
@@ -170,7 +170,7 @@ impl MineMap {
             height,
             map: vec![0; cap],
             blanks: Vec::with_capacity(cap / 32),
-            #[cfg(feature = "guess")]
+            // #[cfg(feature = "guess")]
             evaluate: HashMap::new(),
         })
     }
@@ -544,7 +544,60 @@ impl MineMap {
         res
     }
 
-    pub fn evaluate(&self) {
+    pub fn format_eval(&self) -> String {
+        const NUMS: &[u8; 9] = b" 12345678";
+        // const EVAL: &[u8; 8] = b" abcdefg";
+        let (w, h, size) = self.my_size();
+        let mut buf = String::with_capacity(size * 2 + h);
+        let mut ln = 0;
+        for i in 0..size {
+            buf.push(' ');
+            if let Some(e) = self.evaluate.get(&i) {
+                buf.push(match e {
+                    Evaluate::Guess(_) => 'G',
+                    Evaluate::Force(_) => 'F',
+                    Evaluate::Mines => 'M',
+                    Evaluate::Safe => 'S',
+                });
+            } else {
+                let cell = Cell(self.map[i]);
+                if cell.is_reveal() {
+                    buf.push(NUMS[cell.get_warn() as usize] as char);
+                } else {
+                    buf.push('-');
+                }
+            }
+            if ln < w - 1 {
+                ln += 1;
+            } else {
+                buf.push('\n');
+                ln = 0;
+            }
+        }
+        for v in &self.map {
+            buf.push(' ');
+            let v = Cell(*v).get_warn() as usize;
+            if v <= 8 {
+                buf.push(NUMS[v] as char);
+            } else {
+                buf.push('-');
+            }
+            if ln < w - 1 {
+                ln += 1;
+            } else {
+                buf.push('\n');
+                ln = 0;
+            }
+        }
+        buf
+    }
+
+    /// 评估有雷的概率
+    ///
+    /// 参考文章：https://zhuanlan.zhihu.com/p/35974785
+    /// 1. 开放：由警示数值评估概率
+    /// 2. 孤岛：由地雷环绕形成孤岛，靠剩余数量评估概率
+    pub fn evaluate(&mut self) {
         macro_rules! pass {
             ($c:expr) => {
                 if $c {
@@ -553,49 +606,121 @@ impl MineMap {
             };
         }
         let (width, height, size) = self.my_size();
-        let mut snap: HashMap<usize, Evaluate> = HashMap::new();
+        // group reveal cell
+        let mut group_warn: HashMap<u8, HashSet<usize>> = HashMap::new();
         for i in 0..=self.map.len() {
             let v = self.map[i];
-            pass! {v < BIT_REVEAL}
+            pass! {v <= BIT_REVEAL}
             let w = v & BIT_WARN;
-            let ls_ai = get_around_index(i, width, height);
+
             // there are mines all around
             if w == 8 {
-                for ai in ls_ai {
+                for ai in get_around_index(i, width, height) {
                     if ai < size {
-                        snap.insert(ai, Evaluate::Mines);
+                        self.evaluate.insert(ai, Evaluate::Mines);
                     }
                 }
                 continue;
             }
-            let eval = Evaluate::Guess(w);
-            // 评估、统计周围单元
-            let mut ls_around_guess = HashMap::with_capacity(8);
-            let mut count_force = 0;
-            let mut count_guess = 0;
-            let mut count_mines = 0;
-            let mut count_safe = 0;
-            for ai in ls_ai {
-                pass! {ai > size}
-                let av = self.map[ai];
-                pass! {av >= BIT_REVEAL}
-                let Some(&tmp) = snap.get(&ai) else {
-                    ls_around_guess.insert(ai, eval);
-                    count_guess += 1;
+
+            // collect index
+            if let Some(g) = group_warn.get_mut(&w) {
+                g.insert(i);
+                continue;
+            }
+
+            let mut set = HashSet::with_capacity(128);
+            set.insert(i);
+            group_warn.insert(w, set);
+        }
+        // evaluate by warning num
+        for w in 1..8 {
+            let Some(group) = group_warn.get(&w) else {
+                continue;
+            };
+
+            for &i in group {
+                // 获取周围8格的索引，排除已打开单位
+                let lsai: Vec<usize> = get_around_index(i, width, height)
+                    .into_iter()
+                    .filter(|&ai| ai < size && self.map[ai] > BIT_REVEAL)
+                    .collect();
+
+                // 周围未打开单位数量等于警示数值，全部标记为地雷
+                if w as usize == lsai.len() {
+                    for ai in lsai {
+                        self.evaluate.insert(ai, Evaluate::Mines);
+                    }
                     continue;
-                };
-                match tmp {
-                    Evaluate::Guess(g) => {
-                        ls_around_guess.insert(ai, Evaluate::Guess(if g < w { g } else { w }));
-                        count_guess += 1;
+                }
+
+                // 计算并周围单元格有雷的概率
+                let mut chance = w as f32 / lsai.len() as f32;
+
+                // TODO 调教死猜
+                const CHANCE_1_3: f32 = 1.0 / 3.0;
+                const CHANCE_2_3: f32 = 2.0 / 3.0;
+                if chance == 0.5
+                    || (w == 5 && chance == CHANCE_1_3)
+                    || ((w == 4 || w == 6) && chance == CHANCE_2_3)
+                {
+                    for ai in lsai {
+                        self.evaluate.insert(ai, Evaluate::Force(i));
+                    }
+                    continue;
+                }
+                let mut ls_force = HashSet::with_capacity(4);
+                let mut count_clearly: u8 = 0;
+                let mut count_guess = 0;
+                for &ai in &lsai {
+                    if let Some(e) = self.evaluate.get_mut(&ai) {
+                        match e {
+                            Evaluate::Guess(o) => {
+                                count_guess += 1;
+                                if chance < *o {
+                                    *o = chance;
+                                }
+                            }
+                            Evaluate::Force(c) => {
+                                ls_force.insert(*c);
+                            }
+                            Evaluate::Mines => count_clearly += 1,
+                            Evaluate::Safe => count_clearly += 1,
+                        }
                         continue;
                     }
-                    Evaluate::Force => count_force += 1,
-                    Evaluate::Mines => count_mines += 1,
-                    Evaluate::Safe => count_safe += 1,
+                    self.evaluate.insert(ai, Evaluate::Guess(chance));
+                    count_guess += 1;
                 }
-                ls_around_guess.insert(ai, tmp);
-            }
-        }
+                pass! {w == 1}
+
+                // - 周围未揭露数量==警示数量 => 都是地雷
+                // - 减去安全、确认雷数量后计算概率
+                // - 检查概率是否符合死猜特征
+                if count_guess == w {
+                    for ai in lsai {
+                        pass! {ai > size}
+                        self.evaluate.insert(ai, Evaluate::Mines);
+                    }
+                    continue;
+                }
+
+                // 检查概率是否符合死猜特征
+                let tmp = lsai.len() - count_clearly as usize;
+                chance = (w - count_clearly) as f32 / tmp as f32;
+                if chance == 0.5
+                    || (w == 5 && chance == CHANCE_1_3)
+                    || ((w == 4 || w == 6) && chance == CHANCE_2_3)
+                {
+                    for ai in lsai {
+                        self.evaluate.insert(ai, Evaluate::Force(i));
+                    }
+                    continue;
+                }
+
+                unimplemented!("可能...")
+            } // for &i in group
+        } // for w in 1..8
+          // TODO 查找孤岛场景
     }
 }
